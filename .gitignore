@@ -1,3 +1,3 @@
-/.build/
-/.sdkconig
-/.vscode/
+/build/
+./sdkconfig
+/vscode/
