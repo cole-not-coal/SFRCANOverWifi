@@ -1,3 +1,6 @@
+#include "driver/gpio.h"
+#include "sfrtypes.h"
+
 /* Function Definitions*/
 void task_BG(void);
 void task_1ms(void);
