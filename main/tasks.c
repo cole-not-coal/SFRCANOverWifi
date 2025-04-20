@@ -20,6 +20,7 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #include "main.h"
 #include "pin.h"
 #include "tasks.h"
+#include "can.h"
 
 /* --------------------------- Local Types ----------------------------- */
 typedef enum {
@@ -33,6 +34,9 @@ typedef enum {
     eTASK_ACTIVE = 0,
     eTASK_INACTIVE,
 } eTaskState_t;
+
+/* --------------------------- Local Variables ----------------------------- */
+extern twai_handle_t stCANBus0;
 
 /* --------------------------- Global Variables ----------------------------- */
 dword adwMaxTaskTime[eTASK_TOTAL];
@@ -109,13 +113,67 @@ void task_100ms(void)
 {
     /* Task that runs every 100ms. */
     static qword qwtTaskTimer;
+    static word wNCounter;
+    static qword qwNTxData = 0x123;
+    esp_err_t stState;
+    twai_status_info_t stBusStatus;
+    static twai_message_t data_message = {.identifier = 0x025, .data_length_code = 8,
+        .data = {8, 7, 6, 5, 4, 3, 2, 1}
+       };
+
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_100MS] = eTASK_ACTIVE;
 
-    ESP_LOGI(TAG, "Max Task Time: %5d BG %5d 1ms %5d 100ms", 
-        (int)adwMaxTaskTime[eTASK_BG], 
-        (int)adwMaxTaskTime[eTASK_1MS], 
-        (int)adwMaxTaskTime[eTASK_100MS]);
+    if (wNCounter >= 100)
+    {
+        // Print the max task time every 10 seconds
+        ESP_LOGI(TAG, "Max Task Time: %5d BG %5d 1ms %5d 100ms", 
+            (int)adwMaxTaskTime[eTASK_BG], 
+            (int)adwMaxTaskTime[eTASK_1MS], 
+            (int)adwMaxTaskTime[eTASK_100MS]);
+        wNCounter = 0;
+    }
+    wNCounter++;
+
+    // Check if the CAN bus is in error state and recover
+    twai_get_status_info_v2(stCANBus0, &stBusStatus);
+    switch (stBusStatus.state){
+    case TWAI_STATE_STOPPED:
+    {
+        ESP_LOGW("CAN", "Bus is stopped. Starting...");
+        stState = twai_start_v2(stCANBus0);
+        break;
+    }
+    case TWAI_STATE_BUS_OFF:
+    {
+        ESP_LOGW("CAN", "Bus is in BUS_OFF. Attempting to recover...");
+        stState = twai_initiate_recovery_v2(stCANBus0);
+        break;
+    } 
+    case TWAI_STATE_RECOVERING:
+    {
+        stState = ESP_OK;
+        ESP_LOGW("CAN", "Bus is recovering...");
+        break;
+    }
+    case TWAI_STATE_RUNNING:
+    {
+        stState = twai_transmit_v2(stCANBus0, &data_message, FALSE);
+        break;
+    }
+    default:
+    {
+        ESP_LOGW("CAN", "Bus is so fucked even it does not know what is wrong.");
+        stState = ESP_OK;
+        break;
+    }
+    }
+    if ( stState != ESP_OK ) {
+        ESP_LOGE("CAN", "Action failed: %s", esp_err_to_name(stState));
+        twai_get_status_info_v2(stCANBus0, &stBusStatus);
+        ESP_LOGI("CAN", "TWAI state: %d", stBusStatus.state);
+    }
+    
 
     //update max task time
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;

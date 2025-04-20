@@ -13,8 +13,8 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #include "freertos/FreeRTOS.h"
 #include "esp_err.h"
 
-#include "freertos/timers.h"
 #include "esp_task_wdt.h"
+#include "esp_timer.h"
 #include "driver/gpio.h"
 
 #include "main.h"
@@ -29,15 +29,15 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #define TIMER_INTERVAL_100MS    pdMS_TO_TICKS(100)
 
 /* --------------------------- Global Variables ----------------------------- */
-static TimerHandle_t timer1ms;
-static TimerHandle_t timer100ms;
+esp_timer_handle_t stTaskInterupt1ms;
+esp_timer_handle_t stTaskInterupt100ms;
 
 /* --------------------------- Function prototypes ----------------------------- */
 static void timers_init(void);
 static void main_init(void);
 static void GPIO_init(void);
-void timer_callback_1ms(TimerHandle_t xTimer);
-void timer_callback_100ms(TimerHandle_t xTimer); 
+void IRAM_ATTR callback1ms(void *arg);
+void IRAM_ATTR callback100ms(void *arg);
 
 /* --------------------------- Functions ----------------------------- */
 
@@ -61,42 +61,42 @@ void app_main(void)
         task_BG();
     }
 
-}// 1ms task
-void timer_callback_1ms(TimerHandle_t xTimer) 
-{
-    
-    //TODO add task timer
-    task_1ms();
-
 }
 
-// 100ms task
-void timer_callback_100ms(TimerHandle_t xTimer)  
+void IRAM_ATTR callback1ms(void *arg)
 {
-    
-    //TODO add task timer
-    task_100ms();
+    task_1ms();
+}
 
+void IRAM_ATTR callback100ms(void *arg)
+{
+    task_100ms();
 }
 
 static void main_init(void)
 {
-    timers_init();
     CAN_init();
     GPIO_init();
-
-    // Start the timers
-    xTimerStart(timer1ms, 0);
-    xTimerStart(timer100ms, 0);
+    timers_init();    
 }
 
 static void timers_init(void)
 {
-    // FreeRTOS timers that do not support sub ms timing, but are more suitable for the main tasks
-    timer1ms = xTimerCreate("1ms", TIMER_INTERVAL_1MS, pdTRUE, NULL, timer_callback_1ms);
-    timer100ms = xTimerCreate("100ms", TIMER_INTERVAL_100MS, pdTRUE, NULL, timer_callback_100ms);
+    const esp_timer_create_args_t stTaskInterupt1msArgs = {
+        .callback = &callback1ms,
+        .arg = NULL,
+        .name = "1ms"
+    };
+    const esp_timer_create_args_t stTaskInterupt100msArgs = {
+        .callback = &callback100ms,
+        .arg = NULL,
+        .name = "100ms"
+    };
 
-    configASSERT(timer1ms && timer100ms);
+    ESP_ERROR_CHECK(esp_timer_create(&stTaskInterupt1msArgs, &stTaskInterupt1ms));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(stTaskInterupt1ms, 1000)); // 1ms
+    ESP_ERROR_CHECK(esp_timer_create(&stTaskInterupt100msArgs, &stTaskInterupt100ms));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(stTaskInterupt100ms, 100000)); // 100ms
 }
 
 static void GPIO_init(void)

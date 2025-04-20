@@ -11,6 +11,7 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 typedef int boolean;
 
 typedef unsigned char byte;
+typedef signed char sbyte;
 
 typedef unsigned short word;
 typedef signed short sword;
