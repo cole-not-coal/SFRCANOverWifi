@@ -127,15 +127,21 @@ esp_err_t CAN_transmit(twai_handle_t *stCANBus, dword dwNID, word wDataLength, q
     twai_message_t stMessage;
     esp_err_t stState;
     twai_status_info_t stBusStatus;
+    word wDataIndex;
 
     //Construct message
     stMessage.identifier = dwNID;
     stMessage.data_length_code = wDataLength;
     stMessage.flags = TWAI_MSG_FLAG_NONE;
-    memcpy(stMessage.data, qwNData, wDataLength);
+    for (wDataIndex = 0; wDataIndex < wDataLength; wDataIndex++)
+    {
+        stMessage.data[wDataLength - 1 - wDataIndex] = (*qwNData >> (wDataIndex * 8)) & 0xFF;
+    }
+
+    //memcpy(stMessage.data, qwNData, wDataLength);
     
     //Transmit message
-    stState = twai_transmit_v2(&stCANBus, &stMessage, FALSE);
+    stState = twai_transmit_v2(*stCANBus, &stMessage, FALSE);
     
     //Return error code
     return stState;

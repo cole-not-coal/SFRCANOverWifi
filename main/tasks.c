@@ -35,6 +35,18 @@ typedef enum {
     eTASK_INACTIVE,
 } eTaskState_t;
 
+typedef enum {
+    eCAN_BYTE0 = 0,
+    eCAN_BYTE1,
+    eCAN_BYTE2,
+    eCAN_BYTE3,
+    eCAN_BYTE4,
+    eCAN_BYTE5,
+    eCAN_BYTE6,
+    eCAN_BYTE7,
+    eCAN_MAX_LENGTH
+} eCANDataLength_t;
+
 /* --------------------------- Local Variables ----------------------------- */
 extern twai_handle_t stCANBus0;
 
@@ -114,12 +126,9 @@ void task_100ms(void)
     /* Task that runs every 100ms. */
     static qword qwtTaskTimer;
     static word wNCounter;
-    static qword qwNTxData = 0x123;
+    static qword qwNTxData = 0x123456789;
     esp_err_t stState;
     twai_status_info_t stBusStatus;
-    static twai_message_t data_message = {.identifier = 0x025, .data_length_code = 8,
-        .data = {8, 7, 6, 5, 4, 3, 2, 1}
-       };
 
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_100MS] = eTASK_ACTIVE;
@@ -158,7 +167,8 @@ void task_100ms(void)
     }
     case TWAI_STATE_RUNNING:
     {
-        stState = twai_transmit_v2(stCANBus0, &data_message, FALSE);
+        //stState = twai_transmit_v2(stCANBus0, &data_message, FALSE);
+        stState = CAN_transmit(&stCANBus0, 0x045, eCAN_MAX_LENGTH, &qwNTxData);
         break;
     }
     default:
