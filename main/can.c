@@ -59,43 +59,44 @@ esp_err_t CAN_init(void)
     esp_err_t stState1 = ESP_OK;
 
     #ifdef GPIO_CAN0_TX
-    //Build Config for CAN0 if RX and TX pins are defined
+    /* Build Config for CAN0 if RX and TX pins are defined */
     twai_general_config_t stConfig = TWAI_GENERAL_CONFIG_DEFAULT_V2(CAN0_CONTROLLER_ID,
                             GPIO_CAN0_TX, GPIO_CAN0_RX, TWAI_MODE_NORMAL);
+    
     stConfig.tx_queue_len = CAN0_TX_QUEUE_LENGTH;
     stConfig.rx_queue_len = CAN0_RX_QUEUE_LENGTH;
-
     twai_timing_config_t stTimingConfig = TWAI_TIMING_CONFIG_1MBITS();
     twai_filter_config_t stFilterConfig = TWAI_FILTER_CONFIG_ACCEPT_ALL();
     
-    //Install driver
+    /* Install driver */
     stState0 = twai_driver_install_v2(&stConfig, &stTimingConfig, &stFilterConfig, &stCANBus0);
     if ( stState0 == ESP_OK )
     {
-        //If driver successfully installed then start Bus0
+        /* If driver successfully installed then start Bus0 */
         stState0 = twai_start_v2(stCANBus0);    
     }
     #endif
 
     #ifdef GPIO_CAN1_TX
-    //Build config for CAN1 if RX and TX pins are defined
+    /* Build config for CAN1 if RX and TX pins are defined */
     twai_general_config_t stConfig = TWAI_GENERAL_CONFIG_DEFAULT_V2(CAN1_CONTROLLER_ID,
                             GPIO_CAN1_TX, GPIO_CAN1_RX, TWAI_MODE_NORMAL);
+    
     stConfig.tx_queue_len = CAN1_TX_QUEUE_LENGTH;
     stConfig.rx_queue_len = CAN1_RX_QUEUE_LENGTH;
-
     twai_timing_config_t stTimingConfig = TWAI_TIMING_CONFIG_1MBITS();
     twai_filter_config_t stFilterConfig = TWAI_FILTER_CONFIG_ACCEPT_ALL();
-    //Install driver
+    
+    /* Install driver */
     stState1 = twai_driver_install_v2(&stConfig, &stTimingConfig, &stFilterConfig, &stCANBus1);
     if ( stState1 == ESP_OK )
     {
-        //If driver successfully installed then start Bus1
+        /* If driver successfully installed then start Bus1 */
         stState1 = twai_start_v2(stCANBus1);    
     }
     #endif
 
-    //Return the highest error code (in most cases both will be ESP_OK = 0)
+    /* Return the highest error code (in most cases both will be ESP_OK = 0) */
     if ( stState0 > stState1 )
     {
         return stState0;
@@ -115,7 +116,7 @@ esp_err_t CAN_transmit(twai_handle_t *stCANBus, dword dwNID, word wDataLength, q
     *            dwNID: ID of the message to send
     *            qwNData: Pointer to the data to send
     * 
-    *   Returns: ESP_OK if successful, error code if not.dwNID
+    *   Returns: ESP_OK if successful, error code if not.
     * 
     *   Transmits a CAN message on the given CAN bus.
     *=========================================================================== 
@@ -129,7 +130,7 @@ esp_err_t CAN_transmit(twai_handle_t *stCANBus, dword dwNID, word wDataLength, q
     twai_status_info_t stBusStatus;
     word wDataIndex;
 
-    //Construct message
+    /* Construct message */
     stMessage.identifier = dwNID;
     stMessage.data_length_code = wDataLength;
     stMessage.flags = TWAI_MSG_FLAG_NONE;
@@ -137,13 +138,10 @@ esp_err_t CAN_transmit(twai_handle_t *stCANBus, dword dwNID, word wDataLength, q
     {
         stMessage.data[wDataLength - 1 - wDataIndex] = (*qwNData >> (wDataIndex * 8)) & 0xFF;
     }
-
-    //memcpy(stMessage.data, qwNData, wDataLength);
     
-    //Transmit message
+    /* Transmit message */
     stState = twai_transmit_v2(*stCANBus, &stMessage, FALSE);
     
-    //Return error code
     return stState;
 }
 
@@ -165,10 +163,12 @@ esp_err_t CAN_receive(twai_handle_t *stCANBus)
     *===========================================================================
     */
     uint32_t dwNalerts;
-    esp_err_t stState = twai_read_alerts_v2(stCANBus, &dwNalerts, 1);
+    word wMsgIndex;
+    twai_status_info_t stBusStatus;
+    esp_err_t stState = twai_get_status_info_v2(stCANBus, &stBusStatus);
     twai_message_t stMessage;
-    //if ( stState == ESP_OK && (dwNalerts & TWAI_ALERT_RX_DATA) )
-    if ( TRUE )
+    
+    for (wMsgIndex = 0; wMsgIndex < stBusStatus.msgs_to_rx; wMsgIndex++)
     {
         stState = twai_receive_v2(stCANBus, &stMessage, FALSE);
         if ( stState != ESP_OK )

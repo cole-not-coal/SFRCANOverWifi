@@ -127,8 +127,10 @@ void task_100ms(void)
     static qword qwtTaskTimer;
     static word wNCounter;
     static qword qwNTxData = 0x123456789;
-    esp_err_t stState;
+    esp_err_t stState = ESP_OK;
     twai_status_info_t stBusStatus;
+
+    static word temp = 0;
 
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_100MS] = eTASK_ACTIVE;
@@ -167,8 +169,11 @@ void task_100ms(void)
     }
     case TWAI_STATE_RUNNING:
     {
-        //stState = twai_transmit_v2(stCANBus0, &data_message, FALSE);
-        stState = CAN_transmit(&stCANBus0, 0x045, eCAN_MAX_LENGTH, &qwNTxData);
+        if ( (temp % 1) == 0 )
+        {
+            stState = CAN_transmit(&stCANBus0, 0x045, eCAN_MAX_LENGTH, &qwNTxData);
+        }
+        temp++;
         break;
     }
     default:
