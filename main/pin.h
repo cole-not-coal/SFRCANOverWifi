@@ -1,3 +1,4 @@
+#ifndef SFRPin
 /* --------------------------- Definitions ----------------------------- */
 #define GPIO_ONBOARD_LED 15
 
@@ -7,3 +8,5 @@
 // #define GPIO_CAN1_TX XX
 // #define GPIO_CAN1_RX XX
 
+#define SFRPin
+#endif

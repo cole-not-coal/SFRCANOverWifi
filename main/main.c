@@ -17,16 +17,17 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #include "esp_timer.h"
 #include "driver/gpio.h"
 
-#include "main.h"
 #include "can.h"
 #include "tasks.h"
 #include "pin.h"
+#include "espnow.h"
 
 /* --------------------------- Definitions ----------------------------- */
 #define TIMER_INTERVAL_WD       100     // in microseconds
 #define TIMER_INTERVAL_GP       100
 #define TIMER_INTERVAL_1MS      pdMS_TO_TICKS(1)       // in milliseconds
 #define TIMER_INTERVAL_100MS    pdMS_TO_TICKS(100)
+#define TAG             "CAN Blaster"
 
 /* --------------------------- Global Variables ----------------------------- */
 esp_timer_handle_t stTaskInterupt1ms;

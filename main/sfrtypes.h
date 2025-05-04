@@ -5,6 +5,7 @@ Generic types for SFR codebase
 Written by Cole Perera for Sheffield Formula Racing 2025
 */
 
+#ifndef SFRTypes
 #define TRUE 1
 #define FALSE 0
 
@@ -21,3 +22,6 @@ typedef signed long sdword;
 
 typedef unsigned long long qword;
 typedef signed long long sqword;
+
+#define SFRTypes
+#endif
