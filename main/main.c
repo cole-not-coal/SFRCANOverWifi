@@ -89,7 +89,7 @@ static void main_init(void)
     stStatus = espNow_init();
     if (stStatus != ESP_OK)
     {
-        ESP_LOGE(TAG, "Failed to initialise CAN: %s", esp_err_to_name(stStatus));
+        ESP_LOGE(TAG, "Failed to initialise ESP-NOW: %s", esp_err_to_name(stStatus));
     }
 }
 

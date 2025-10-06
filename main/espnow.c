@@ -7,8 +7,6 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 
 #include "espnow.h"
 #include "sfrtypes.h"
-#include "esp_err.h"
-#include "esp_log.h"
 
 /* --------------------------- Local Types ----------------------------- */
 typedef enum {
@@ -37,15 +35,20 @@ typedef struct {
     espnow_event_info_t info;
 } espnow_event_t;
 
-/* --------------------------- Local Variables ----------------------------- */
+/* --------------------------- Local Variables ------------------------ */
 
-/* --------------------------- Global Variables ----------------------------- */
-
-/* --------------------------- Function prototypes ----------------------------- */
+/* --------------------------- Global Variables ----------------------- */
+/*
+* MAC Adresses of my devices
+* 1: 8C:BF:EA:CF:94:24
+* 2: 8C:BF:EA:CF:90:34
+* 3: 9C:9E:6E:77:AF:50
+*/
+uint8_t byMACAdress[6] = {0x8C, 0xBF, 0xEA, 0xCF, 0x90, 0x34}; // Change to the MAC address of target device
 
 /* --------------------------- Definitions ----------------------------- */
 
-/* --------------------------- Function prototypes ----------------------------- */
+/* --------------------------- Function prototypes --------------------- */
 esp_err_t espNow_init(void);
 esp_err_t nvs_init(void);
 static void espNowTxCallback(const uint8_t *mac_addr, esp_now_send_status_t status);
@@ -68,37 +71,60 @@ esp_err_t espNow_init(void)
     *
     *===========================================================================
     */
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    wifi_init_config_t stWifiConfig = WIFI_INIT_CONFIG_DEFAULT();
     esp_err_t stStatus;
 
     /* Initialise NVS */
     stStatus = nvs_init();
     if (stStatus != ESP_OK)
     {
-        ESP_LOGE("NVS", "Failed to initialise NVS: %s", esp_err_to_name(stStatus));
+        ESP_LOGE("NVS", "Failed to start: %s", esp_err_to_name(stStatus));
         return stStatus;
     }
     
     /* Initialise Wifi */
     esp_netif_init();
     esp_event_loop_create_default();
-    esp_wifi_init(&cfg);
+    esp_wifi_init(&stWifiConfig);
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_set_storage(WIFI_STORAGE_RAM);
     esp_wifi_set_ps(WIFI_PS_NONE);
     stStatus = esp_wifi_start();
     if (stStatus != ESP_OK) {
-        ESP_LOGE("WiFi", "Failed to start WiFi: %s", esp_err_to_name(stStatus));
+        ESP_LOGE("WiFi", "Failed to start: %s", esp_err_to_name(stStatus));
         return stStatus;
     }
-    esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
+    esp_wifi_set_channel(CONFIG_ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
+    stStatus = esp_now_init();
+    if (stStatus != ESP_OK) {
+        ESP_LOGE("ESP-NOW", "Failed to start: %s", esp_err_to_name(stStatus));
+        return stStatus;
+    }
     
     /* Print this ESP's MAC Address */
-    uint8_t mac_addr[6];
-    esp_read_mac(mac_addr, ESP_MAC_WIFI_STA);
+    uint8_t abyThisESPMacAddr[6];
+    esp_read_mac(abyThisESPMacAddr, ESP_MAC_WIFI_STA);
     ESP_LOGI("ESP-NOW", "ESP MAC Address: %02X:%02X:%02X:%02X:%02X:%02X", 
-             mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-             
+             abyThisESPMacAddr[0], abyThisESPMacAddr[1], abyThisESPMacAddr[2],
+             abyThisESPMacAddr[3], abyThisESPMacAddr[4], abyThisESPMacAddr[5]);
+            
+    #ifdef TX_SIDE
+    /* Add Peers */
+    esp_now_peer_info_t stPeerInfo = {0};
+    memcpy(stPeerInfo.peer_addr, byMACAdress, ESP_NOW_ETH_ALEN);
+    stPeerInfo.channel = CONFIG_ESPNOW_CHANNEL;
+    stPeerInfo.encrypt = false;
+    stStatus = esp_now_add_peer(&stPeerInfo);
+    if (stStatus != ESP_OK) {
+        ESP_LOGE("ESP-NOW", "Failed to add peer: %s", esp_err_to_name(stStatus));
+        return stStatus;
+    }
+    #endif
+
+    /* Register Callbacks */
+    esp_now_register_send_cb(espNowTxCallback);
+    esp_now_register_recv_cb(espNowRxCallback);
+
     return stStatus;
 }
 
@@ -134,7 +160,7 @@ esp_err_t nvs_init(void)
     return stStatus;
 }
 
-static void espNowTxCallback(const uint8_t *mac_addr, esp_now_send_status_t status)
+static void espNowTxCallback(const uint8_t *mac_addr, esp_now_send_status_t stStatus)
 {
     /*
     *===========================================================================
@@ -154,16 +180,20 @@ static void espNowTxCallback(const uint8_t *mac_addr, esp_now_send_status_t stat
     *===========================================================================
     */
 
+    ESP_LOGI("ESP-NOW","sent to : %02X:%02X:%02X:%02X:%02X:%02X status: %d", 
+             mac_addr[0], mac_addr[1], mac_addr[2],
+             mac_addr[3], mac_addr[4], mac_addr[5], stStatus);
+
 }
 
-static void espNowRxCallback(const esp_now_recv_info_t *recv_info, const uint8_t *bydata, int Nlen)
+static void espNowRxCallback(const esp_now_recv_info_t *recv_info, const uint8_t *byData, int NLen)
 {
      /*
     *===========================================================================
     *   espNowRxCallback
     *   Takes:   recv_info - information about the received data
-    *            data - pointer to the received data
-    *            len - length of the received data
+    *            byData - pointer to the received data
+    *            NLen - length of the received data
     * 
     *   Returns: None
     * 
@@ -178,7 +208,7 @@ static void espNowRxCallback(const esp_now_recv_info_t *recv_info, const uint8_t
     *===========================================================================
     */
 
-    ESP_LOGI("ESP-NOW","received data : %.*s", Nlen, bydata);
+    ESP_LOGI("ESP-NOW","received data : %.*s", NLen, byData);
 
 }
 

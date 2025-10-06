@@ -15,11 +15,10 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #include "freertos/task.h"
 #include "esp_task_wdt.h"
 #include "esp_timer.h"
-#include "esp_log.h"
-#include "esp_err.h"
 #include "pin.h"
 #include "tasks.h"
 #include "can.h"
+#include "espnow.h"
 
 /* --------------------------- Local Types ----------------------------- */
 typedef enum {
@@ -41,6 +40,7 @@ typedef enum {
 
 /* --------------------------- Local Variables ----------------------------- */
 extern twai_handle_t stCANBus0;
+extern uint8_t byMACAdress[6];
 
 /* --------------------------- Global Variables ----------------------------- */
 dword adwMaxTaskTime[eTASK_TOTAL];
@@ -65,7 +65,7 @@ void task_BG(void)
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_BG] = eTASK_ACTIVE;
 
-    //service the watchdog if all task have been completed at least once
+    /* Service the watchdog if all task have been completed at least once */
     word wNTaskCounter = 0;
     boolean bTasksComplete = TRUE;
     for (wNTaskCounter = 0; wNTaskCounter < eTASK_TOTAL; wNTaskCounter++)
@@ -76,7 +76,7 @@ void task_BG(void)
         }
     }
     if (bTasksComplete) {
-        // Reset the watchdog timer
+        /* Reset the watchdog timer */
         esp_task_wdt_reset();
         for (wNTaskCounter = 0; wNTaskCounter < eTASK_TOTAL; wNTaskCounter++)
         {
@@ -89,7 +89,12 @@ void task_BG(void)
         CAN_receive(stCANBus0);
     }
 
-    //update max task time
+    #ifdef TX_SIDE
+    /* Send ESPNow Msg */
+    esp_now_send(byMACAdress, (uint8_t *) "Sending via ESP-NOW", strlen("Sending via ESP-NOW"));
+    #endif
+
+    /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
     if (qwtTaskTimer > adwMaxTaskTime[eTASK_BG]) {
         adwMaxTaskTime[eTASK_BG] = (dword)qwtTaskTimer;
@@ -103,15 +108,7 @@ void task_1ms(void)
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_1MS] = eTASK_ACTIVE;
 
-    static word wNTaskCounter = 0;
-
-    if ( wNTaskCounter % 1000 == 0 ) 
-    {
-        pin_toggle(GPIO_ONBOARD_LED); // Toggle the LED every second
-    }
-    wNTaskCounter++;
-
-    //update max task time
+    /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
     if (qwtTaskTimer > adwMaxTaskTime[eTASK_1MS]) 
     {
@@ -131,9 +128,17 @@ void task_100ms(void)
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_100MS] = eTASK_ACTIVE;
 
+    /* Every Second */
+    if ( wNCounter % 10 == 0 ) 
+    {
+        /* Toggle LED */
+        pin_toggle(GPIO_ONBOARD_LED); 
+
+    }
+
     if (wNCounter >= 100)
     {
-        // Print the max task time every 10 seconds
+        /* Print the max task time every 10 seconds */
         ESP_LOGI(TAG, "Max Task Time: %5d BG %5d 1ms %5d 100ms", 
             (int)adwMaxTaskTime[eTASK_BG], 
             (int)adwMaxTaskTime[eTASK_1MS], 
@@ -142,7 +147,7 @@ void task_100ms(void)
     }
     wNCounter++;
 
-    // Check if the CAN bus is in error state and recover
+    /* Check if the CAN bus is in error state and recover */
     twai_get_status_info_v2(stCANBus0, &stBusStatus);
     switch (stBusStatus.state){
     case TWAI_STATE_STOPPED:
@@ -185,7 +190,7 @@ void task_100ms(void)
     }
     
 
-    //update max task time
+    /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
     if (qwtTaskTimer > adwMaxTaskTime[eTASK_100MS]) 
     {
