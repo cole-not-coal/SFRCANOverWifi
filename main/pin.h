@@ -8,5 +8,7 @@
 // #define GPIO_CAN1_TX XX
 // #define GPIO_CAN1_RX XX
 
+#define TAG             "CAN Blaster"
+
 #define SFRPin
 #endif

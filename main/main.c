@@ -27,7 +27,6 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #define TIMER_INTERVAL_GP       100
 #define TIMER_INTERVAL_1MS      pdMS_TO_TICKS(1)       // in milliseconds
 #define TIMER_INTERVAL_100MS    pdMS_TO_TICKS(100)
-#define TAG             "CAN Blaster"
 
 /* --------------------------- Global Variables ----------------------------- */
 esp_timer_handle_t stTaskInterupt1ms;
@@ -76,9 +75,22 @@ void IRAM_ATTR callback100ms(void *arg)
 
 static void main_init(void)
 {
-    CAN_init();
+    esp_err_t stStatus;
+    stStatus = CAN_init();
+    if (stStatus != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialise CAN: %s", esp_err_to_name(stStatus));
+    }
+
+    /* Timers and GPIO cause a hard fault on fail so no error warning */
     GPIO_init();
-    timers_init();    
+    timers_init();  
+
+    stStatus = espNow_init();
+    if (stStatus != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialise CAN: %s", esp_err_to_name(stStatus));
+    }
 }
 
 static void timers_init(void)

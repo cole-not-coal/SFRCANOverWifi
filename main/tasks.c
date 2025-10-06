@@ -17,7 +17,6 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "esp_err.h"
-#include "main.h"
 #include "pin.h"
 #include "tasks.h"
 #include "can.h"
