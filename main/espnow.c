@@ -44,13 +44,18 @@ typedef struct {
 * 2: 8C:BF:EA:CF:90:34
 * 3: 9C:9E:6E:77:AF:50
 */
-uint8_t byMACAdress[6] = {0x8C, 0xBF, 0xEA, 0xCF, 0x90, 0x34}; // Change to the MAC address of target device
+uint8_t byMACAddress[6] = {0x8C, 0xBF, 0xEA, 0xCF, 0x90, 0x34}; // Change to the MAC address of target device
+CAN_frame_t *stCANRingBuffer = NULL;
+_Atomic word wRingBufHead = 0; // next write index
+_Atomic word wRingBufTail = 0; // next read index
 
 /* --------------------------- Definitions ----------------------------- */
+#define PACKED_FRAME_SIZE 11 // 2 bytes ID + 1 byte DLC + 8 bytes data
 
 /* --------------------------- Function prototypes --------------------- */
 esp_err_t espNow_init(void);
 esp_err_t nvs_init(void);
+esp_err_t esp_now_send_can(void);
 static void espNowTxCallback(const uint8_t *mac_addr, esp_now_send_status_t status);
 static void espNowRxCallback(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len);
 
@@ -107,11 +112,22 @@ esp_err_t espNow_init(void)
     ESP_LOGI("ESP-NOW", "ESP MAC Address: %02X:%02X:%02X:%02X:%02X:%02X", 
              abyThisESPMacAddr[0], abyThisESPMacAddr[1], abyThisESPMacAddr[2],
              abyThisESPMacAddr[3], abyThisESPMacAddr[4], abyThisESPMacAddr[5]);
-            
+    
+    /* Allocate Ring Buffer */
+    CAN_frame_t *stCANRingBufferInitial = (CAN_frame_t *)malloc(sizeof(CAN_frame_t) 
+                                        * CAN_QUEUE_LENGTH);                      
+    if (!stCANRingBufferInitial) {
+        ESP_LOGE("ESP-NOW", "Failed to allocate ring buffer (len=%u)", CAN_QUEUE_LENGTH);
+        return ESP_ERR_NO_MEM;
+    }
+    stCANRingBuffer = stCANRingBufferInitial;   
+    __atomic_store_n(&wRingBufHead, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&wRingBufTail, 0, __ATOMIC_RELAXED);    
+
     #ifdef TX_SIDE
     /* Add Peers */
     esp_now_peer_info_t stPeerInfo = {0};
-    memcpy(stPeerInfo.peer_addr, byMACAdress, ESP_NOW_ETH_ALEN);
+    memcpy(stPeerInfo.peer_addr, byMACAddress, ESP_NOW_ETH_ALEN);
     stPeerInfo.channel = CONFIG_ESPNOW_CHANNEL;
     stPeerInfo.encrypt = false;
     stStatus = esp_now_add_peer(&stPeerInfo);
@@ -212,4 +228,86 @@ static void espNowRxCallback(const esp_now_recv_info_t *recv_info, const uint8_t
 
 }
 
+esp_err_t esp_now_send_can(void)
+{
+    /*
+    *===========================================================================
+    *   esp_now_send_can
+    *   Takes:   None
+    * 
+    *   Returns: stStatus - ESP_OK if successful, error code if not.
+    * 
+    *   Empties the CAN ring buffer by packing as many CAN frames as possible
+    *   into a single ESP-NOW packet (250 bytes) and sending it. If there are no
+    *   frames to send, it returns ESP_OK. Each CAN frame takes 11 bytes in the
+    *   ESP-NOW packet (2 bytes ID, 1 byte DLC, 8 bytes data). The ring buffer is
+    *   115 frames in total so it can take up to 3 ESP-NOW packets to empty
+    *   the buffer if it is full. This function only sends one ESP-NOW packet per
+    *   call, it is intended to be run once per 100ms or so.
+    * 
+    *=========================================================================== 
+    *   Revision History:
+    *   08/10/25 CP Initial Version
+    *
+    *===========================================================================
+    */
 
+    esp_err_t stStatus = ESP_OK;
+    byte byBytesToSend[MAX_ESPNOW_PAYLOAD];
+    if (!stCANRingBuffer) 
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+    
+    /* Load ring buffer head and tail */
+    dword dwLocalHead = __atomic_load_n(&wRingBufHead, __ATOMIC_ACQUIRE);
+    dword dwLocalTail = __atomic_load_n(&wRingBufTail, __ATOMIC_RELAXED);
+    dword dwOffset = 0;
+
+    /* Until the ring buffer is empty or the ESP-NOW message is full, pack the message */ 
+    while (dwOffset + PACKED_FRAME_SIZE <= MAX_ESPNOW_PAYLOAD && dwLocalTail != dwLocalHead) {
+        CAN_frame_t stCANFrame = stCANRingBuffer[dwLocalTail];
+
+        byBytesToSend[dwOffset + 0] = (byte)(stCANFrame.dwId & 0xFF);
+        byBytesToSend[dwOffset + 1] = (byte)((stCANFrame.dwId >> 8) & 0xFF);
+        byBytesToSend[dwOffset + 2] = (byte)stCANFrame.bDLC;
+        memcpy(&byBytesToSend[dwOffset + 3], stCANFrame.abData, 8);
+        dwOffset += PACKED_FRAME_SIZE;
+
+        /* Advance tail */ 
+        dwLocalTail++;
+        if (dwLocalTail >= CAN_QUEUE_LENGTH) 
+        {
+            dwLocalTail = 0;
+        }
+    }
+    /* Publish new tail */
+    __atomic_store_n(&wRingBufTail, dwLocalTail, __ATOMIC_RELEASE);
+
+    /* If data is present send it otherwise return ESP_OK */
+    if (dwOffset > 0) 
+    {
+        return esp_now_send(byMACAddress, byBytesToSend, dwOffset);
+    }
+    return ESP_OK;
+}
+
+// Unpack the incoming ESPNOW packet into frames and call registered handler
+static void can_espnow_espnow_recv(const esp_now_recv_info_t *info, const uint8_t *data, int len)
+{
+    (void)info;
+    if (len <= 0) return;
+
+    int offset = 0;
+    while (offset + PACKED_FRAME_SIZE <= len) {
+        CAN_frame_t stFrame;
+        dword dwId = ((dword)data[offset + 1] << 8)  |
+                        ((dword)data[offset + 0]);
+        stFrame.dwId = dwId;
+        stFrame.bDLC = data[offset + 4];
+        memcpy(stFrame.abData, &data[offset + 5], 8);
+        /* something goes here */
+
+        offset += PACKED_FRAME_SIZE;
+    }
+}

@@ -25,19 +25,21 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 /* --------------------------- Definitions ----------------------------- */
 #define TIMER_INTERVAL_WD       100     // in microseconds
 #define TIMER_INTERVAL_GP       100
+#define INTERRUPT_INTERVAL_1MS   1000    // in microseconds
+#define INTERRUPT_INTERVAL_100MS 100000 
 #define TIMER_INTERVAL_1MS      pdMS_TO_TICKS(1)       // in milliseconds
 #define TIMER_INTERVAL_100MS    pdMS_TO_TICKS(100)
 
 /* --------------------------- Global Variables ----------------------------- */
-esp_timer_handle_t stTaskInterupt1ms;
-esp_timer_handle_t stTaskInterupt100ms;
+esp_timer_handle_t stTaskInterrupt1ms;
+esp_timer_handle_t stTaskInterrupt100ms;
 
 /* --------------------------- Function prototypes ----------------------------- */
 static void timers_init(void);
 static void main_init(void);
 static void GPIO_init(void);
-void IRAM_ATTR callback1ms(void *arg);
-void IRAM_ATTR callback100ms(void *arg);
+void IRAM_ATTR call_back_1ms(void *arg);
+void IRAM_ATTR call_back_100ms(void *arg);
 
 /* --------------------------- Functions ----------------------------- */
 
@@ -55,7 +57,7 @@ void app_main(void)
     /* Initialise device */
     main_init();
 
-    /* Run background task all other tasks are called by interupts */
+    /* Run background task all other tasks are called by interrupts */
     while(1)
     {
         task_BG();
@@ -63,12 +65,12 @@ void app_main(void)
 
 }
 
-void IRAM_ATTR callback1ms(void *arg)
+void IRAM_ATTR call_back_1ms(void *arg)
 {
     task_1ms();
 }
 
-void IRAM_ATTR callback100ms(void *arg)
+void IRAM_ATTR call_back_100ms(void *arg)
 {
     task_100ms();
 }
@@ -79,7 +81,7 @@ static void main_init(void)
     stStatus = CAN_init();
     if (stStatus != ESP_OK)
     {
-        ESP_LOGE(TAG, "Failed to initialise CAN: %s", esp_err_to_name(stStatus));
+        ESP_LOGE(SFR_TAG, "Failed to initialise CAN: %s", esp_err_to_name(stStatus));
     }
 
     /* Timers and GPIO cause a hard fault on fail so no error warning */
@@ -89,27 +91,27 @@ static void main_init(void)
     stStatus = espNow_init();
     if (stStatus != ESP_OK)
     {
-        ESP_LOGE(TAG, "Failed to initialise ESP-NOW: %s", esp_err_to_name(stStatus));
+        ESP_LOGE(SFR_TAG, "Failed to initialise ESP-NOW: %s", esp_err_to_name(stStatus));
     }
 }
 
 static void timers_init(void)
 {
-    const esp_timer_create_args_t stTaskInterupt1msArgs = {
-        .callback = &callback1ms,
+    const esp_timer_create_args_t stTaskInterrupt1msArgs = {
+        .callback = &call_back_1ms,
         .arg = NULL,
         .name = "1ms"
     };
-    const esp_timer_create_args_t stTaskInterupt100msArgs = {
-        .callback = &callback100ms,
+    const esp_timer_create_args_t stTaskInterrupt100msArgs = {
+        .callback = &call_back_100ms,
         .arg = NULL,
         .name = "100ms"
     };
 
-    ESP_ERROR_CHECK(esp_timer_create(&stTaskInterupt1msArgs, &stTaskInterupt1ms));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(stTaskInterupt1ms, 1000)); // 1ms
-    ESP_ERROR_CHECK(esp_timer_create(&stTaskInterupt100msArgs, &stTaskInterupt100ms));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(stTaskInterupt100ms, 100000)); // 100ms
+    ESP_ERROR_CHECK(esp_timer_create(&stTaskInterrupt1msArgs, &stTaskInterrupt1ms));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(stTaskInterrupt1ms, INTERRUPT_INTERVAL_1MS)); // 1ms
+    ESP_ERROR_CHECK(esp_timer_create(&stTaskInterrupt100msArgs, &stTaskInterrupt100ms));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(stTaskInterrupt100ms, INTERRUPT_INTERVAL_100MS)); // 100ms
 }
 
 static void GPIO_init(void)

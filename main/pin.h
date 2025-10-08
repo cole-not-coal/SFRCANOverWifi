@@ -1,4 +1,5 @@
-#ifndef SFRPin
+#ifndef SFR_PIN
+#define SFR_PIN
 /* --------------------------- Definitions ----------------------------- */
 #define GPIO_ONBOARD_LED 15
 
@@ -8,7 +9,6 @@
 // #define GPIO_CAN1_TX XX
 // #define GPIO_CAN1_RX XX
 
-#define TAG             "CAN Blaster"
+#define SFR_TAG             "CAN_BLASTER"
 
-#define SFRPin
-#endif
+#endif // SFR_PIN

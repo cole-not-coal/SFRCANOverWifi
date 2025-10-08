@@ -11,6 +11,7 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #include "pin.h"
 #include "can.h"
 #include "string.h"
+#include "espnow.h"
 
 #include "esp_log.h"
 #include "esp_err.h"
@@ -23,6 +24,10 @@ twai_handle_t stCANBus0;
 twai_handle_t stCANBus1;
 #endif
 /* --------------------------- Local Variables ------------------------------ */
+extern CAN_frame_t *stCANRingBuffer;
+extern _Atomic word wRingBufHead;
+extern _Atomic word wRingBufTail;
+
 
 /* --------------------------- Function prototypes -------------------------- */
 
@@ -154,30 +159,60 @@ esp_err_t CAN_receive(twai_handle_t *stCANBus)
     * 
     *   Returns: ESP_OK if successful, error code if not.dwNID
     * 
-    *   Checks if data is in the RX buffer and if so sends it to 
-    *   process_CAN_messaage().
+    *   Checks if data is in the RX buffer and if adds it to the ring buffer. If
+    *   there is no data it returns ESP_OK. If the ring buffer is full it drops
+    *   the message.
     *=========================================================================== 
     *   Revision History:
     *   20/04/25 CP Initial Version
+    *   08/10/25 CP Updated to implement ring buffer
     *
     *===========================================================================
     */
-    uint32_t dwNalerts;
+    dword dwNalerts;
     word wMsgIndex;
     twai_status_info_t stBusStatus;
     esp_err_t stState = twai_get_status_info_v2(stCANBus, &stBusStatus);
     twai_message_t stMessage;
+    CAN_frame_t stRxedFrame;
     
     for (wMsgIndex = 0; wMsgIndex < stBusStatus.msgs_to_rx; wMsgIndex++)
     {
         stState = twai_receive_v2(stCANBus, &stMessage, FALSE);
-        if ( stState != ESP_OK )
+        if ( stState != ESP_OK ) /* Rx Fail */
         {
             ESP_LOGE("CAN", "Receive failed: %s", esp_err_to_name(stState));
         }
-        else
+        else /* Put CAN Frame into Ring Buffer */
         {
-            process_CAN_message(&stMessage);
+            if (!stCANRingBuffer) 
+            {
+                return ESP_ERR_INVALID_STATE;
+            }
+
+            /* Get local copy of queue head and tail */
+            word wLocalHead = __atomic_load_n(&wRingBufHead, __ATOMIC_RELAXED);
+            word wNext = wLocalHead + 1;
+            if (wNext >= CAN_QUEUE_LENGTH) 
+            {
+                wNext = 0;
+            }
+            word wLocalTail = __atomic_load_n(&wRingBufTail, __ATOMIC_ACQUIRE);
+
+            if (wNext == wLocalTail) {
+                /* Buffer full, drop frame */
+                return ESP_ERR_NO_MEM;
+            }
+
+            /* Copy frame into buffer */
+            stRxedFrame.dwId = (dword)stMessage.identifier;
+            stRxedFrame.bDLC = (byte)stMessage.data_length_code;
+            memcpy(stRxedFrame.abData, stMessage.data, stMessage.data_length_code);
+            stCANRingBuffer[wLocalHead] = stRxedFrame;
+
+            /* Publish new head */
+            __atomic_store_n(&wRingBufHead, wNext, __ATOMIC_RELEASE);
+
         }
     }
 
@@ -188,8 +223,8 @@ void process_CAN_message(twai_message_t *stMessage)
 {
     /*
     *===========================================================================
-    *   CAN_receive
-    *   Takes:   stMessage: Pointer to a recived can message
+    *   process_CAN_message - Debug function
+    *   Takes:   stMessage: Pointer to a received can message
     * 
     *   Returns: Nothing.
     * 
@@ -203,13 +238,13 @@ void process_CAN_message(twai_message_t *stMessage)
     *===========================================================================
     */
     char abyMessage[250];
-    char abyData[10];
     uint16_t wMsgIndex;
-    sprintf(abyMessage, "ID: %03lx |", stMessage->identifier);
-    for ( wMsgIndex = 0; wMsgIndex < stMessage->data_length_code; wMsgIndex++ )
+    int nPos = 0;
+
+    nPos = snprintf(abyMessage, sizeof(abyMessage), "ID: %03lx |", stMessage->identifier);
+    for ( wMsgIndex = 0; wMsgIndex < stMessage->data_length_code && nPos < (int)sizeof(abyMessage) - 4; wMsgIndex++ )
     {
-        sprintf(abyData, " %02x", (unsigned int)stMessage->data[wMsgIndex]);
-        strcat((char)abyMessage, (char)abyData);
+        nPos += snprintf(&abyMessage[nPos], sizeof(abyMessage) - nPos, " %02x", (unsigned int)stMessage->data[wMsgIndex]);
     }
-    ESP_LOGI("CAN", "%s", abyMessage);
+    ESP_LOGI(SFR_TAG, "%s", abyMessage);
 }

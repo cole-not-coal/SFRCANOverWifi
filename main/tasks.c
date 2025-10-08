@@ -40,7 +40,7 @@ typedef enum {
 
 /* --------------------------- Local Variables ----------------------------- */
 extern twai_handle_t stCANBus0;
-extern uint8_t byMACAdress[6];
+extern uint8_t byMACAddress[6];
 
 /* --------------------------- Global Variables ----------------------------- */
 dword adwMaxTaskTime[eTASK_TOTAL];
@@ -84,14 +84,9 @@ void task_BG(void)
         }
     }
 
-    if ( wCAN0BusState == eCAN_BUS_OK ) 
-    {
-        CAN_receive(stCANBus0);
-    }
-
     #ifdef TX_SIDE
     /* Send ESPNow Msg */
-    esp_now_send(byMACAdress, (uint8_t *) "Sending via ESP-NOW", strlen("Sending via ESP-NOW"));
+    esp_now_send_can();
     #endif
 
     /* Update max task time */
@@ -107,6 +102,11 @@ void task_1ms(void)
     static qword qwtTaskTimer;
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_1MS] = eTASK_ACTIVE;
+
+    if ( wCAN0BusState == eCAN_BUS_OK ) 
+    {
+        CAN_receive(stCANBus0);
+    }
 
     /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
@@ -139,7 +139,7 @@ void task_100ms(void)
     if (wNCounter >= 100)
     {
         /* Print the max task time every 10 seconds */
-        ESP_LOGI(TAG, "Max Task Time: %5d BG %5d 1ms %5d 100ms", 
+        ESP_LOGI(SFR_TAG, "Max Task Time: %5d BG %5d 1ms %5d 100ms", 
             (int)adwMaxTaskTime[eTASK_BG], 
             (int)adwMaxTaskTime[eTASK_1MS], 
             (int)adwMaxTaskTime[eTASK_100MS]);

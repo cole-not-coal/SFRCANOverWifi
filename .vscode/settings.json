@@ -10,5 +10,9 @@
     "idf.flashType": "UART",
     "idf.customExtraVars": {
         "IDF_TARGET": "esp32c6"
+    },
+    "files.associations": {
+        "esp_mac.h": "c",
+        "stdio.h": "c"
     }
 }
