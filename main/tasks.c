@@ -15,12 +15,10 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #include "freertos/task.h"
 #include "esp_task_wdt.h"
 #include "esp_timer.h"
-#include "esp_log.h"
-#include "esp_err.h"
-#include "main.h"
 #include "pin.h"
 #include "tasks.h"
 #include "can.h"
+#include "espnow.h"
 
 /* --------------------------- Local Types ----------------------------- */
 typedef enum {
@@ -36,23 +34,18 @@ typedef enum {
 } eTaskState_t;
 
 typedef enum {
-    eCAN_BYTE0 = 0,
-    eCAN_BYTE1,
-    eCAN_BYTE2,
-    eCAN_BYTE3,
-    eCAN_BYTE4,
-    eCAN_BYTE5,
-    eCAN_BYTE6,
-    eCAN_BYTE7,
-    eCAN_MAX_LENGTH
-} eCANDataLength_t;
+    eCAN_BUS_OK = 0,
+    eCAN_BUS_ERROR,
+} eCANBusState_t;
 
 /* --------------------------- Local Variables ----------------------------- */
 extern twai_handle_t stCANBus0;
+extern uint8_t byMACAddress[6];
 
 /* --------------------------- Global Variables ----------------------------- */
 dword adwMaxTaskTime[eTASK_TOTAL];
 eTaskState_t astTaskState[eTASK_TOTAL];
+word wCAN0BusState;
 
 /* --------------------------- Function prototypes ----------------------------- */
 
@@ -72,7 +65,7 @@ void task_BG(void)
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_BG] = eTASK_ACTIVE;
 
-    //service the watchdog if all task have been completed at least once
+    /* Service the watchdog if all task have been completed at least once */
     word wNTaskCounter = 0;
     boolean bTasksComplete = TRUE;
     for (wNTaskCounter = 0; wNTaskCounter < eTASK_TOTAL; wNTaskCounter++)
@@ -83,7 +76,7 @@ void task_BG(void)
         }
     }
     if (bTasksComplete) {
-        // Reset the watchdog timer
+        /* Reset the watchdog timer */
         esp_task_wdt_reset();
         for (wNTaskCounter = 0; wNTaskCounter < eTASK_TOTAL; wNTaskCounter++)
         {
@@ -91,7 +84,12 @@ void task_BG(void)
         }
     }
 
-    //update max task time
+    #ifdef TX_SIDE
+    /* Send ESPNow Msg */
+    esp_now_send_can();
+    #endif
+
+    /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
     if (qwtTaskTimer > adwMaxTaskTime[eTASK_BG]) {
         adwMaxTaskTime[eTASK_BG] = (dword)qwtTaskTimer;
@@ -105,15 +103,12 @@ void task_1ms(void)
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_1MS] = eTASK_ACTIVE;
 
-    static word wNTaskCounter = 0;
-
-    if ( wNTaskCounter % 1000 == 0 ) 
+    if ( wCAN0BusState == eCAN_BUS_OK ) 
     {
-        pin_toggle(GPIO_ONBOARD_LED); // Toggle the LED every second
+        CAN_receive(stCANBus0);
     }
-    wNTaskCounter++;
 
-    //update max task time
+    /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
     if (qwtTaskTimer > adwMaxTaskTime[eTASK_1MS]) 
     {
@@ -126,19 +121,25 @@ void task_100ms(void)
     /* Task that runs every 100ms. */
     static qword qwtTaskTimer;
     static word wNCounter;
-    static qword qwNTxData = 0x123456789;
-    esp_err_t stState = ESP_OK;
+    static qword qwNTxData = 0x123;
+    esp_err_t stState;
     twai_status_info_t stBusStatus;
-
-    static word temp = 0;
 
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_100MS] = eTASK_ACTIVE;
 
+    /* Every Second */
+    if ( wNCounter % 10 == 0 ) 
+    {
+        /* Toggle LED */
+        pin_toggle(GPIO_ONBOARD_LED); 
+
+    }
+
     if (wNCounter >= 100)
     {
-        // Print the max task time every 10 seconds
-        ESP_LOGI(TAG, "Max Task Time: %5d BG %5d 1ms %5d 100ms", 
+        /* Print the max task time every 10 seconds */
+        ESP_LOGI(SFR_TAG, "Max Task Time: %5d BG %5d 1ms %5d 100ms", 
             (int)adwMaxTaskTime[eTASK_BG], 
             (int)adwMaxTaskTime[eTASK_1MS], 
             (int)adwMaxTaskTime[eTASK_100MS]);
@@ -146,51 +147,50 @@ void task_100ms(void)
     }
     wNCounter++;
 
-    // Check if the CAN bus is in error state and recover
+    /* Check if the CAN bus is in error state and recover */
     twai_get_status_info_v2(stCANBus0, &stBusStatus);
     switch (stBusStatus.state){
     case TWAI_STATE_STOPPED:
     {
+        wCAN0BusState = eCAN_BUS_ERROR;
         ESP_LOGW("CAN", "Bus is stopped. Starting...");
         stState = twai_start_v2(stCANBus0);
         break;
     }
     case TWAI_STATE_BUS_OFF:
     {
+        wCAN0BusState = eCAN_BUS_ERROR;
         ESP_LOGW("CAN", "Bus is in BUS_OFF. Attempting to recover...");
         stState = twai_initiate_recovery_v2(stCANBus0);
         break;
     } 
     case TWAI_STATE_RECOVERING:
     {
+        wCAN0BusState = eCAN_BUS_ERROR;
         stState = ESP_OK;
         ESP_LOGW("CAN", "Bus is recovering...");
         break;
     }
     case TWAI_STATE_RUNNING:
     {
-        if ( (temp % 1) == 0 )
-        {
-            stState = CAN_transmit(&stCANBus0, 0x045, eCAN_MAX_LENGTH, &qwNTxData);
-        }
-        temp++;
+        stState = ESP_OK;
+        wCAN0BusState = eCAN_BUS_OK;
         break;
     }
     default:
     {
+        wCAN0BusState = eCAN_BUS_ERROR;
         ESP_LOGW("CAN", "Bus is so fucked even it does not know what is wrong.");
         stState = ESP_OK;
         break;
     }
     }
-    if ( stState != ESP_OK ) {
+    if (stState != ESP_OK) {
         ESP_LOGE("CAN", "Action failed: %s", esp_err_to_name(stState));
-        twai_get_status_info_v2(stCANBus0, &stBusStatus);
-        ESP_LOGI("CAN", "TWAI state: %d", stBusStatus.state);
     }
     
 
-    //update max task time
+    /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
     if (qwtTaskTimer > adwMaxTaskTime[eTASK_100MS]) 
     {
