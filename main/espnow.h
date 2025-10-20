@@ -21,9 +21,10 @@
 #define MAX_ESPNOW_PAYLOAD 250
 
 
-esp_err_t espNow_init(void);
-esp_err_t esp_now_send_can(void);
+esp_err_t ESPNOW_init(void);
+esp_err_t ESPNOW_empty_buffer(void);
 #define SFREspNow
-#define TX_SIDE  // Comment out this line on the RX side
+//#define TX_SIDE  // Comment out the line acordingly for RX or TX side
+//#define RX_SIDE  // Comment out the line acordingly for RX or TX side
 
 #endif // SFRESPNow

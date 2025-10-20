@@ -30,6 +30,11 @@ extern _Atomic word wRingBufTail;
 
 
 /* --------------------------- Function prototypes -------------------------- */
+esp_err_t CAN_receive(twai_handle_t stCANBus);
+esp_err_t CAN_transmit(twai_handle_t stCANBus, CAN_frame_t stFrame);
+esp_err_t CAN_init(void);
+void process_CAN_message(twai_message_t *stMessage);
+esp_err_t CAN_empty_buffer(twai_handle_t stCANBus);
 
 /* --------------------------- Definitions ---------------------------------- */
 #define CAN0_CONTROLLER_ID 0
@@ -41,6 +46,8 @@ extern _Atomic word wRingBufTail;
 #define CAN1_TX_QUEUE_LENGTH 10
 #define CAN1_RX_QUEUE_LENGTH 10
 #define CAN1_TX_MESSAGE_LENGTH 8
+
+#define MAX_CAN_TXS_PER_CALL 1
 
 /* --------------------------- Functions ------------------------------------ */
 esp_err_t CAN_init(void)
@@ -75,10 +82,12 @@ esp_err_t CAN_init(void)
     
     /* Install driver */
     stState0 = twai_driver_install_v2(&stConfig, &stTimingConfig, &stFilterConfig, &stCANBus0);
+    ESP_LOGI("CAN", "CAN0 driver_install returned: %s, handle=%p", esp_err_to_name(stState0), (void*)stCANBus0);
     if ( stState0 == ESP_OK )
     {
         /* If driver successfully installed then start Bus0 */
-        stState0 = twai_start_v2(stCANBus0);    
+        stState0 = twai_start_v2(stCANBus0); 
+        ESP_LOGI("CAN", "CAN0 start returned: %s", esp_err_to_name(stState0));   
     }
     #endif
 
@@ -112,7 +121,7 @@ esp_err_t CAN_init(void)
     }
 }
 
-esp_err_t CAN_transmit(twai_handle_t *stCANBus, dword dwNID, word wDataLength, qword *qwNData)
+esp_err_t CAN_transmit(twai_handle_t stCANBus, CAN_frame_t stFrame)
 {
     /*
     *===========================================================================
@@ -135,22 +144,36 @@ esp_err_t CAN_transmit(twai_handle_t *stCANBus, dword dwNID, word wDataLength, q
     twai_status_info_t stBusStatus;
     word wDataIndex;
 
-    /* Construct message */
-    stMessage.identifier = dwNID;
-    stMessage.data_length_code = wDataLength;
-    stMessage.flags = TWAI_MSG_FLAG_NONE;
-    for (wDataIndex = 0; wDataIndex < wDataLength; wDataIndex++)
-    {
-        stMessage.data[wDataLength - 1 - wDataIndex] = (*qwNData >> (wDataIndex * 8)) & 0xFF;
+    /* Validate inputs */
+    if (!stCANBus) {
+        ESP_LOGE("CAN", "CAN_transmit: NULL stCANBus handle");
+        return ESP_ERR_INVALID_ARG;
     }
+
+    twai_status_info_t dbgStatus;
+    if ( twai_get_status_info_v2(stCANBus, &dbgStatus) == ESP_OK ) {
+        ESP_LOGI("CAN", "DBG status state=%d tec=%lu rec=%lu msgs_tx=%lu msgs_rx=%lu",
+                 dbgStatus.state, dbgStatus.tx_error_counter, dbgStatus.rx_error_counter, dbgStatus.msgs_to_tx, dbgStatus.msgs_to_rx);
+    } else {
+        ESP_LOGW("CAN", "DBG: twai_get_status_info_v2 failed");
+    }
+
+    /* init message */
+    memset(&stMessage, 0, sizeof(stMessage));
+
+    /* Construct message */
+    stMessage.identifier = stFrame.dwId;
+    stMessage.data_length_code = stFrame.bDLC;
+    stMessage.flags = TWAI_MSG_FLAG_NONE;
+    memcpy(stMessage.data, stFrame.abData, stMessage.data_length_code);
     
     /* Transmit message */
-    stState = twai_transmit_v2(*stCANBus, &stMessage, FALSE);
+    stState = twai_transmit_v2(stCANBus, &stMessage, FALSE);
     
     return stState;
 }
 
-esp_err_t CAN_receive(twai_handle_t *stCANBus)
+esp_err_t CAN_receive(twai_handle_t stCANBus)
 {
     /*
     *===========================================================================
@@ -247,4 +270,59 @@ void process_CAN_message(twai_message_t *stMessage)
         nPos += snprintf(&abyMessage[nPos], sizeof(abyMessage) - nPos, " %02x", (unsigned int)stMessage->data[wMsgIndex]);
     }
     ESP_LOGI(SFR_TAG, "%s", abyMessage);
+}
+
+esp_err_t CAN_empty_buffer(twai_handle_t stCANBus)
+{
+    /*
+    *===========================================================================
+    *   CAN_empty_buffer
+    *   Takes:   stCANBus: Pointer to the CAN bus handle
+    * 
+    *   Returns: ESP_OK if successful, error code if not.
+    * 
+    *   Empties the CAN ring buffer by transmitting messages until the buffer is
+    *   empty or the max number of messages per call is reached.
+    *=========================================================================== 
+    *   Revision History:
+    *   15/10/25 CP Initial Version
+    *
+    *===========================================================================
+    */
+    esp_err_t stStatus = ESP_OK;
+    byte byBytesToSend[MAX_ESPNOW_PAYLOAD];
+    if (!stCANRingBuffer) 
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    /* Load ring buffer head and tail */
+    dword dwLocalHead = __atomic_load_n(&wRingBufHead, __ATOMIC_ACQUIRE);
+    dword dwLocalTail = __atomic_load_n(&wRingBufTail, __ATOMIC_RELAXED);
+    word wCounter = 0;
+        
+    /* Until the ring buffer is empty or the max number of messages is reached send CAN messages */ 
+    while (wCounter < MAX_CAN_TXS_PER_CALL && dwLocalTail != dwLocalHead) 
+    {
+        CAN_frame_t stCANFrame = stCANRingBuffer[dwLocalTail];   
+        stStatus = CAN_transmit(stCANBus, stCANFrame);  
+        if (stStatus != ESP_OK) 
+        {
+            /* Publish new tail */
+            __atomic_store_n(&wRingBufTail, dwLocalTail, __ATOMIC_RELEASE);
+            return stStatus;
+        }
+
+        /* Advance tail */ 
+        dwLocalTail++;
+        wCounter++;
+        if (dwLocalTail >= CAN_QUEUE_LENGTH) 
+        {
+            dwLocalTail = 0;
+        }
+    }
+    
+    /* Publish new tail */
+    __atomic_store_n(&wRingBufTail, dwLocalTail, __ATOMIC_RELEASE);
+    return stStatus;
 }

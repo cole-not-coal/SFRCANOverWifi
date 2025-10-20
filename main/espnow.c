@@ -53,18 +53,20 @@ _Atomic word wRingBufTail = 0; // next read index
 #define PACKED_FRAME_SIZE 11 // 2 bytes ID + 1 byte DLC + 8 bytes data
 
 /* --------------------------- Function prototypes --------------------- */
-esp_err_t espNow_init(void);
-esp_err_t nvs_init(void);
-esp_err_t esp_now_send_can(void);
-static void espNowTxCallback(const uint8_t *mac_addr, esp_now_send_status_t status);
-static void espNowRxCallback(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len);
+esp_err_t ESPNOW_init(void);
+esp_err_t NVS_init(void);
+esp_err_t ESPNOW_fill_buffer(const byte *abyData, byte bNDataLength);
+esp_err_t ESPNOW_empty_buffer(void);
+static void ESPNOW_tx_callback(const byte *abyMACAddress, esp_now_send_status_t stStatus);
+static void ESPNOW_rx_callback(const esp_now_recv_info_t *recv_info, const byte *byData, byte byNLength);
+
 
 /* --------------------------- Functions ----------------------------- */
-esp_err_t espNow_init(void)
+esp_err_t ESPNOW_init(void)
 {
     /*
     *===========================================================================
-    *   espNow_init
+    *   ESPNOW_init
     *   Takes:   None
     * 
     *   Returns: ESP_OK if successful, error code if not.
@@ -80,7 +82,7 @@ esp_err_t espNow_init(void)
     esp_err_t stStatus;
 
     /* Initialise NVS */
-    stStatus = nvs_init();
+    stStatus = NVS_init();
     if (stStatus != ESP_OK)
     {
         ESP_LOGE("NVS", "Failed to start: %s", esp_err_to_name(stStatus));
@@ -138,17 +140,17 @@ esp_err_t espNow_init(void)
     #endif
 
     /* Register Callbacks */
-    esp_now_register_send_cb(espNowTxCallback);
-    esp_now_register_recv_cb(espNowRxCallback);
+    esp_now_register_send_cb(ESPNOW_tx_callback);
+    esp_now_register_recv_cb(ESPNOW_rx_callback);
 
     return stStatus;
 }
 
-esp_err_t nvs_init(void)
+esp_err_t NVS_init(void)
 {
     /*
     *===========================================================================
-    *   nvs_init
+    *   NVS_init
     *   Takes:   None
     * 
     *   Returns: ESP_OK if successful, error code if not.
@@ -176,19 +178,18 @@ esp_err_t nvs_init(void)
     return stStatus;
 }
 
-static void espNowTxCallback(const uint8_t *mac_addr, esp_now_send_status_t stStatus)
+static void ESPNOW_tx_callback(const byte *abyMACAddress, esp_now_send_status_t stStatus)
 {
     /*
     *===========================================================================
-    *   espNowTxCallback
-    *   Takes:   status - status of send
-    *            mac_addr - MAC address of the receiver
+    *   ESPNOW_tx_callback
+    *   Takes:   stStatus - status of send
+    *            abyMACAddress - MAC address of the receiver
     * 
     *   Returns: None
     * 
     *   The callback function for when data is sent via esp now. Currently does
-    *   nothing. Do not do anything lengthy in this function, post to a queue
-    *   if and handle it in a lower priority task.
+    *   nothing. Do not do anything lengthy in this function.
     *=========================================================================== 
     *   Revision History:
     *   06/10/25 CP Initial Version
@@ -197,19 +198,19 @@ static void espNowTxCallback(const uint8_t *mac_addr, esp_now_send_status_t stSt
     */
 
     ESP_LOGI("ESP-NOW","sent to : %02X:%02X:%02X:%02X:%02X:%02X status: %d", 
-             mac_addr[0], mac_addr[1], mac_addr[2],
-             mac_addr[3], mac_addr[4], mac_addr[5], stStatus);
+        abyMACAddress[0], abyMACAddress[1], abyMACAddress[2],
+        abyMACAddress[3], abyMACAddress[4], abyMACAddress[5], stStatus);
 
 }
 
-static void espNowRxCallback(const esp_now_recv_info_t *recv_info, const uint8_t *byData, int NLen)
+static void ESPNOW_rx_callback(const esp_now_recv_info_t *recv_info, const byte *byData, byte byNLength)
 {
      /*
     *===========================================================================
-    *   espNowRxCallback
+    *   ESPNOW_rx_callback
     *   Takes:   recv_info - information about the received data
     *            byData - pointer to the received data
-    *            NLen - length of the received data
+    *            byNLength - length of the received data
     * 
     *   Returns: None
     * 
@@ -224,15 +225,19 @@ static void espNowRxCallback(const esp_now_recv_info_t *recv_info, const uint8_t
     *===========================================================================
     */
 
-    ESP_LOGI("ESP-NOW","received data : %.*s", NLen, byData);
+    #ifdef RX_SIDE
+    ESPNOW_fill_buffer(byData, byNLength);
+    #endif
+    
+    ESP_LOGI("ESP-NOW", "Data received: %.*s", byNLength, byData); 
 
 }
 
-esp_err_t esp_now_send_can(void)
+esp_err_t ESPNOW_empty_buffer(void)
 {
     /*
     *===========================================================================
-    *   esp_now_send_can
+    *   ESPNOW_empty_buffer
     *   Takes:   None
     * 
     *   Returns: stStatus - ESP_OK if successful, error code if not.
@@ -265,7 +270,8 @@ esp_err_t esp_now_send_can(void)
     dword dwOffset = 0;
 
     /* Until the ring buffer is empty or the ESP-NOW message is full, pack the message */ 
-    while (dwOffset + PACKED_FRAME_SIZE <= MAX_ESPNOW_PAYLOAD && dwLocalTail != dwLocalHead) {
+    while (dwOffset + PACKED_FRAME_SIZE <= MAX_ESPNOW_PAYLOAD && dwLocalTail != dwLocalHead) 
+    {
         CAN_frame_t stCANFrame = stCANRingBuffer[dwLocalTail];
 
         byBytesToSend[dwOffset + 0] = (byte)(stCANFrame.dwId & 0xFF);
@@ -288,26 +294,72 @@ esp_err_t esp_now_send_can(void)
     if (dwOffset > 0) 
     {
         return esp_now_send(byMACAddress, byBytesToSend, dwOffset);
+        ESP_LOGI("ESP-NOW", "Data sent: %.*s", (int)dwOffset, byBytesToSend); 
     }
+    
     return ESP_OK;
 }
 
-// Unpack the incoming ESPNOW packet into frames and call registered handler
-static void can_espnow_espnow_recv(const esp_now_recv_info_t *info, const uint8_t *data, int len)
+esp_err_t ESPNOW_fill_buffer(const byte *abyData, byte bNDataLength)
 {
-    (void)info;
-    if (len <= 0) return;
+    /*
+    *===========================================================================
+    *   ESPNOW_fill_buffer
+    *   Takes:   abData - pointer to data Rxed over ESP-NOW
+    *            bNDataLength - length of data Rxed
+    * 
+    *   Returns: None
+    * 
+    *   Processes data received over ESP-NOW and adds it to the CAN ring buffer.
+    *   The ring buffer is intended to be emptied by a seperate CAN task. If the
+    *   buffer is full (or not initialised) the message will be dropped.
+    * 
+    *=========================================================================== 
+    *   Revision History:
+    *   15/10/25 CP Initial Version
+    *
+    *===========================================================================
+    */
+    if (bNDataLength <= 0) 
+    {
+        return ESP_OK;
+    }
 
-    int offset = 0;
-    while (offset + PACKED_FRAME_SIZE <= len) {
+    /* Check out Ring buffer Vars */
+    if (!stCANRingBuffer) 
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+    word wLocalHead = __atomic_load_n(&wRingBufHead, __ATOMIC_RELAXED);
+    word wLocalTail = __atomic_load_n(&wRingBufTail, __ATOMIC_ACQUIRE);
+    word wNext = wLocalHead + 1;
+    
+    byte offset = 0;
+    while (offset + PACKED_FRAME_SIZE <= bNDataLength) {
         CAN_frame_t stFrame;
-        dword dwId = ((dword)data[offset + 1] << 8)  |
-                        ((dword)data[offset + 0]);
+        dword dwId = ((dword)abyData[offset + 1] << 8)  |
+                        ((dword)abyData[offset + 0]);
         stFrame.dwId = dwId;
-        stFrame.bDLC = data[offset + 4];
-        memcpy(stFrame.abData, &data[offset + 5], 8);
-        /* something goes here */
+        stFrame.bDLC = abyData[offset + 2];
+        memcpy(stFrame.abData, &abyData[offset + 3], 8);
 
+        /* Add Frame to Ring Buffer */
+        if (wNext >= CAN_QUEUE_LENGTH) 
+        {
+            wNext = 0;
+        }
+        if (wNext == wLocalTail) 
+        {
+            /* Buffer full, drop remaining frames */
+            __atomic_store_n(&wRingBufHead, wNext, __ATOMIC_RELEASE);
+            return ESP_ERR_NO_MEM;
+        }
+        stCANRingBuffer[wLocalHead] = stFrame;
+        wNext++;
         offset += PACKED_FRAME_SIZE;
     }
+
+    /* Publish new head */
+    __atomic_store_n(&wRingBufHead, wNext--, __ATOMIC_RELEASE);
+    return ESP_OK;
 }

@@ -50,6 +50,7 @@ word wCAN0BusState;
 /* --------------------------- Function prototypes ----------------------------- */
 
 /* --------------------------- Definitions ----------------------------- */
+#define CAN_TX_PERIOD   1000  // ms (max rate of transmission)
 
 /* --------------------------- Function prototypes ----------------------------- */
 void pin_toggle(gpio_num_t pin);
@@ -86,7 +87,7 @@ void task_BG(void)
 
     #ifdef TX_SIDE
     /* Send ESPNow Msg */
-    esp_now_send_can();
+    ESPNOW_empty_buffer();
     #endif
 
     /* Update max task time */
@@ -102,11 +103,36 @@ void task_1ms(void)
     static qword qwtTaskTimer;
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_1MS] = eTASK_ACTIVE;
+    static dword dwNCounter = 0;
+    static dword dwTXId = 0x12;
+    static qword qwNTxData = 0x0;
+    static byte byNDataLength = 8;
+    CAN_frame_t stTxFrame;
+    esp_err_t stState = ESP_OK;
 
+    stTxFrame.dwId = dwTXId;
+    stTxFrame.bDLC = byNDataLength;
+    qwNTxData++;
+    memcpy(stTxFrame.abData, &qwNTxData, byNDataLength);
+    if (dwNCounter++ >= CAN_TX_PERIOD)
+    {
+        dwNCounter = 0;
+        stState = CAN_transmit(stCANBus0, stTxFrame);
+        if (stState != ESP_OK) 
+        {
+            ESP_LOGE("CAN", "Failed to transmit CAN message: %s", esp_err_to_name(stState));
+        }
+    }
     if ( wCAN0BusState == eCAN_BUS_OK ) 
     {
         CAN_receive(stCANBus0);
     }
+
+    #ifdef RX_SIDE
+    CAN_empty_buffer(stCANBus0);
+    #endif
+
+
 
     /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
