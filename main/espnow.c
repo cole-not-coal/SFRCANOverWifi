@@ -199,10 +199,12 @@ static void ESPNOW_tx_callback(const wifi_tx_info_t *tx_info, esp_now_send_statu
 
     byte abyMACAddress[6];
     memcpy(abyMACAddress, tx_info->des_addr, sizeof(abyMACAddress));
+    
+    #ifdef DEBUG
     ESP_LOGI("ESP-NOW","sent to : %02X:%02X:%02X:%02X:%02X:%02X status: %d", 
         abyMACAddress[0], abyMACAddress[1], abyMACAddress[2],
         abyMACAddress[3], abyMACAddress[4], abyMACAddress[5], stStatus);
-
+    #endif
 }
 
 static void ESPNOW_rx_callback(const esp_now_recv_info_t *recv_info, const uint8_t *byData, int byNLength)
@@ -227,11 +229,10 @@ static void ESPNOW_rx_callback(const esp_now_recv_info_t *recv_info, const uint8
     *===========================================================================
     */
 
-    #ifdef RX_SIDE
     ESPNOW_fill_buffer(byData, byNLength);
-    #endif
-    
+    #ifdef DEBUG
     ESP_LOGI("ESP-NOW", "Data received: %.*s", byNLength, byData); 
+    #endif
 
 }
 
@@ -296,7 +297,9 @@ esp_err_t ESPNOW_empty_buffer(void)
     if (dwOffset > 0) 
     {
         return esp_now_send(byMACAddress, byBytesToSend, dwOffset);
+        #ifdef DEBUG
         ESP_LOGI("ESP-NOW", "Data sent: %.*s", (int)dwOffset, byBytesToSend); 
+        #endif
     }
     
     return ESP_OK;

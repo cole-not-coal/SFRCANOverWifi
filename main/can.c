@@ -81,12 +81,10 @@ esp_err_t CAN_init(void)
     
     /* Install driver */
     stState0 = twai_driver_install_v2(&stConfig, &stTimingConfig, &stFilterConfig, &stCANBus0);
-    ESP_LOGI("CAN", "CAN0 driver_install returned: %s, handle=%p", esp_err_to_name(stState0), (void*)stCANBus0);
     if ( stState0 == ESP_OK )
     {
         /* If driver successfully installed then start Bus0 */
-        stState0 = twai_start_v2(stCANBus0); 
-        ESP_LOGI("CAN", "CAN0 start returned: %s", esp_err_to_name(stState0));   
+        stState0 = twai_start_v2(stCANBus0);   
     }
     #endif
 
@@ -149,6 +147,7 @@ esp_err_t CAN_transmit(twai_handle_t stCANBus, CAN_frame_t stFrame)
         return ESP_ERR_INVALID_ARG;
     }
 
+    #ifdef DEBUG
     twai_status_info_t dbgStatus;
     if ( twai_get_status_info_v2(stCANBus, &dbgStatus) == ESP_OK ) {
         ESP_LOGI("CAN", "DBG status state=%d tec=%lu rec=%lu msgs_tx=%lu msgs_rx=%lu",
@@ -156,6 +155,7 @@ esp_err_t CAN_transmit(twai_handle_t stCANBus, CAN_frame_t stFrame)
     } else {
         ESP_LOGW("CAN", "DBG: twai_get_status_info_v2 failed");
     }
+    #endif
 
     /* init message */
     memset(&stMessage, 0, sizeof(stMessage));
