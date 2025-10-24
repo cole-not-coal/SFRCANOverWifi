@@ -4,7 +4,7 @@ Generic types for SFR codebase
 
 Written by Cole Perera for Sheffield Formula Racing 2025
 */
-
+#define DEBUG
 #ifndef SFRTypes
 #define TRUE 1
 #define FALSE 0

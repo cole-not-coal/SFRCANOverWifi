@@ -19,6 +19,7 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #include "tasks.h"
 #include "can.h"
 #include "espnow.h"
+#include "sdcard.h"
 
 /* --------------------------- Local Types ----------------------------- */
 typedef enum {
@@ -44,13 +45,14 @@ extern uint8_t byMACAddress[6];
 
 /* --------------------------- Global Variables ----------------------------- */
 dword adwMaxTaskTime[eTASK_TOTAL];
+dword adwLastTaskTime[eTASK_TOTAL];
 eTaskState_t astTaskState[eTASK_TOTAL];
 word wCAN0BusState;
+dword dwTimeSincePowerUpms = 0;
 
 /* --------------------------- Function prototypes ----------------------------- */
 
 /* --------------------------- Definitions ----------------------------- */
-#define CAN_TX_PERIOD   1000  // ms (max rate of transmission)
 
 /* --------------------------- Function prototypes ----------------------------- */
 void pin_toggle(gpio_num_t pin);
@@ -66,6 +68,9 @@ void task_BG(void)
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_BG] = eTASK_ACTIVE;
 
+    /* Empty CAN buffer */
+    sdcard_empty_buffer();
+
     /* Service the watchdog if all task have been completed at least once */
     word wNTaskCounter = 0;
     boolean bTasksComplete = TRUE;
@@ -78,20 +83,20 @@ void task_BG(void)
     }
     if (bTasksComplete) {
         /* Reset the watchdog timer */
-        esp_task_wdt_reset();
+        esp_err_t err = esp_task_wdt_reset();
+        if (err == ESP_ERR_NOT_FOUND) {
+            esp_task_wdt_add(NULL);       
+            esp_task_wdt_reset();           
+        }
         for (wNTaskCounter = 0; wNTaskCounter < eTASK_TOTAL; wNTaskCounter++)
         {
             astTaskState[wNTaskCounter] = eTASK_INACTIVE;
         }
     }
 
-    #ifdef TX_SIDE
-    /* Send ESPNow Msg */
-    ESPNOW_empty_buffer();
-    #endif
-
     /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
+    adwLastTaskTime[eTASK_BG] = (dword)qwtTaskTimer;
     if (qwtTaskTimer > adwMaxTaskTime[eTASK_BG]) {
         adwMaxTaskTime[eTASK_BG] = (dword)qwtTaskTimer;
     }
@@ -104,38 +109,20 @@ void task_1ms(void)
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_1MS] = eTASK_ACTIVE;
     static dword dwNCounter = 0;
-    static dword dwTXId = 0x12;
-    static qword qwNTxData = 0x0;
-    static byte byNDataLength = 8;
     CAN_frame_t stTxFrame;
     esp_err_t stState = ESP_OK;
 
-    stTxFrame.dwId = dwTXId;
-    stTxFrame.bDLC = byNDataLength;
-    qwNTxData++;
-    memcpy(stTxFrame.abData, &qwNTxData, byNDataLength);
-    if (dwNCounter++ >= CAN_TX_PERIOD)
-    {
-        dwNCounter = 0;
-        stState = CAN_transmit(stCANBus0, stTxFrame);
-        if (stState != ESP_OK) 
-        {
-            ESP_LOGE("CAN", "Failed to transmit CAN message: %s", esp_err_to_name(stState));
-        }
-    }
     if ( wCAN0BusState == eCAN_BUS_OK ) 
     {
         CAN_receive(stCANBus0);
     }
 
-    #ifdef RX_SIDE
-    CAN_empty_buffer(stCANBus0);
-    #endif
-
-
+    /* Update time since power up */
+    dwTimeSincePowerUpms++;
 
     /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
+    adwLastTaskTime[eTASK_1MS] = (dword)qwtTaskTimer;
     if (qwtTaskTimer > adwMaxTaskTime[eTASK_1MS]) 
     {
         adwMaxTaskTime[eTASK_1MS] = (dword)qwtTaskTimer;
@@ -164,11 +151,15 @@ void task_100ms(void)
 
     if (wNCounter >= 100)
     {
-        /* Print the max task time every 10 seconds */
+        /* Print the task times every 10 seconds */
         ESP_LOGI(SFR_TAG, "Max Task Time: %5d BG %5d 1ms %5d 100ms", 
-            (int)adwMaxTaskTime[eTASK_BG], 
-            (int)adwMaxTaskTime[eTASK_1MS], 
+            (int)adwMaxTaskTime[eTASK_BG],
+            (int)adwMaxTaskTime[eTASK_1MS],
             (int)adwMaxTaskTime[eTASK_100MS]);
+        ESP_LOGI(SFR_TAG, "Last Task Time: %5d BG %5d 1ms %5d 100ms", 
+            (int)adwLastTaskTime[eTASK_BG], 
+            (int)adwLastTaskTime[eTASK_1MS],
+            (int)adwLastTaskTime[eTASK_100MS]);
         wNCounter = 0;
     }
     wNCounter++;
@@ -218,6 +209,7 @@ void task_100ms(void)
 
     /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
+    adwLastTaskTime[eTASK_100MS] = (dword)qwtTaskTimer;
     if (qwtTaskTimer > adwMaxTaskTime[eTASK_100MS]) 
     {
         adwMaxTaskTime[eTASK_100MS] = (dword)qwtTaskTimer;

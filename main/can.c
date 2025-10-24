@@ -5,7 +5,6 @@ File contains the CAN functions for a esp32c6.
 Written by Cole Perera for Sheffield Formula Racing 2025
 */
 
-#include "esp_err.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "pin.h"

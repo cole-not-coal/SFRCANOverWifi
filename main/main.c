@@ -21,6 +21,7 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #include "tasks.h"
 #include "pin.h"
 #include "espnow.h"
+#include "sdcard.h"
 
 /* --------------------------- Definitions ----------------------------- */
 #define TIMER_INTERVAL_WD       100     // in microseconds
@@ -88,10 +89,17 @@ static void main_init(void)
     {
         ESP_LOGE(SFR_TAG, "Failed to initialise CAN: %s", esp_err_to_name(stStatus));
     }
+    
+    stStatus = SD_card_init();
+    if (stStatus != ESP_OK)
+    {
+        ESP_LOGE(SFR_TAG, "Failed to initialise SD Card: %s", esp_err_to_name(stStatus));
+    }
 
     /* Timers and GPIO cause a hard fault on fail so no error warning */
     GPIO_init();
     timers_init();  
+    
 }
 
 static void timers_init(void)
