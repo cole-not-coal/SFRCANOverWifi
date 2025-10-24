@@ -3,3 +3,4 @@
 /.vscode/           
 sdkconfig            
 sdkconfig.old   
+.clangd
