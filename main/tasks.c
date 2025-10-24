@@ -105,7 +105,6 @@ void task_1ms(void)
     static qword qwtTaskTimer;
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_1MS] = eTASK_ACTIVE;
-    static dword dwNCounter = 0;
 
     /* Update time since power up */
     dwTimeSincePowerUpms++;

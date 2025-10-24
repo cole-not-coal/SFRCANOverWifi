@@ -24,8 +24,8 @@ typedef unsigned long long qword;
 typedef signed long long sqword;
 
 typedef struct {
-    dword dwId;      // CAN ID (11- bit packed in 16-bit)
-    byte  bDLC;      // 0-8 (Data Length Code)
+    dword dwID;      // CAN ID (11- bit packed in 16-bit)
+    byte  byDLC;      // 0-8 (Data Length Code)
     byte  abData[8];  // up to 8 bytes
 } CAN_frame_t;
 

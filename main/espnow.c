@@ -276,9 +276,9 @@ esp_err_t ESPNOW_empty_buffer(void)
     {
         CAN_frame_t stCANFrame = stCANRingBuffer[dwLocalTail];
 
-        byBytesToSend[dwOffset + 0] = (byte)(stCANFrame.dwId & 0xFF);
-        byBytesToSend[dwOffset + 1] = (byte)((stCANFrame.dwId >> 8) & 0xFF);
-        byBytesToSend[dwOffset + 2] = (byte)stCANFrame.bDLC;
+        byBytesToSend[dwOffset + 0] = (byte)(stCANFrame.dwID & 0xFF);
+        byBytesToSend[dwOffset + 1] = (byte)((stCANFrame.dwID >> 8) & 0xFF);
+        byBytesToSend[dwOffset + 2] = (byte)stCANFrame.byDLC;
         memcpy(&byBytesToSend[dwOffset + 3], stCANFrame.abData, 8);
         dwOffset += PACKED_FRAME_SIZE;
 
@@ -339,10 +339,10 @@ esp_err_t ESPNOW_fill_buffer(const byte *abyData, byte bNDataLength)
     byte offset = 0;
     while (offset + PACKED_FRAME_SIZE <= bNDataLength) {
         CAN_frame_t stFrame;
-        dword dwId = ((dword)abyData[offset + 1] << 8)  |
+        dword dwID = ((dword)abyData[offset + 1] << 8)  |
                         ((dword)abyData[offset + 0]);
-        stFrame.dwId = dwId;
-        stFrame.bDLC = abyData[offset + 2];
+        stFrame.dwID = dwID;
+        stFrame.byDLC = abyData[offset + 2];
         memcpy(stFrame.abData, &abyData[offset + 3], 8);
 
         /* Add Frame to Ring Buffer */

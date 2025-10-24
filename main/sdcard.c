@@ -172,8 +172,8 @@ esp_err_t SD_card_write_CAN(CAN_frame_t stCANFrame, dword dwTimestamp)
     {
         return ESP_FAIL;
     }
-    fprintf(stFile, "%d: %d %X ", (int)dwTimeSincePowerUpms/1000, (int)stCANFrame.dwId, (int)stCANFrame.bDLC);
-    for (byte i = 0; i < stCANFrame.bDLC; i++)
+    fprintf(stFile, "%d: %d %X ", (int)dwTimeSincePowerUpms/1000, (int)stCANFrame.dwID, (int)stCANFrame.byDLC);
+    for (byte i = 0; i < stCANFrame.byDLC; i++)
     {
         fprintf(stFile, " %02X", (int)stCANFrame.abData[i]);
     }
@@ -225,8 +225,8 @@ esp_err_t sdcard_empty_buffer(void)
         ESP_LOGI("SDCARD", "Writing CAN Frame to SD Card");
         #endif
         CAN_frame_t stCANFrame = stCANRingBuffer[dwLocalTail];
-        fprintf(stFile, "%d: %d %X ", (int)dwTimeSincePowerUpms/1000, (int)stCANFrame.dwId, (int)stCANFrame.bDLC);
-        for (byte i = 0; i < stCANFrame.bDLC; i++)
+        fprintf(stFile, "%d: %d %X ", (int)dwTimeSincePowerUpms/1000, (int)stCANFrame.dwID, (int)stCANFrame.byDLC);
+        for (byte i = 0; i < stCANFrame.byDLC; i++)
         {
             fprintf(stFile, " %02X", (int)stCANFrame.abData[i]);
         }

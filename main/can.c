@@ -161,8 +161,8 @@ esp_err_t CAN_transmit(twai_handle_t stCANBus, CAN_frame_t stFrame)
     memset(&stMessage, 0, sizeof(stMessage));
 
     /* Construct message */
-    stMessage.identifier = stFrame.dwId;
-    stMessage.data_length_code = stFrame.bDLC;
+    stMessage.identifier = stFrame.dwID;
+    stMessage.data_length_code = stFrame.byDLC;
     stMessage.flags = TWAI_MSG_FLAG_NONE;
     memcpy(stMessage.data, stFrame.abData, stMessage.data_length_code);
     
@@ -227,8 +227,8 @@ esp_err_t CAN_receive(twai_handle_t stCANBus)
             }
 
             /* Copy frame into buffer */
-            stRxedFrame.dwId = (dword)stMessage.identifier;
-            stRxedFrame.bDLC = (byte)stMessage.data_length_code;
+            stRxedFrame.dwID = (dword)stMessage.identifier;
+            stRxedFrame.byDLC = (byte)stMessage.data_length_code;
             memcpy(stRxedFrame.abData, stMessage.data, stMessage.data_length_code);
             stCANRingBuffer[wLocalHead] = stRxedFrame;
 
