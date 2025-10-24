@@ -68,9 +68,6 @@ void task_BG(void)
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_BG] = eTASK_ACTIVE;
 
-    /* Empty CAN buffer */
-    sdcard_empty_buffer();
-
     /* Service the watchdog if all task have been completed at least once */
     word wNTaskCounter = 0;
     boolean bTasksComplete = TRUE;
@@ -109,13 +106,6 @@ void task_1ms(void)
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_1MS] = eTASK_ACTIVE;
     static dword dwNCounter = 0;
-    CAN_frame_t stTxFrame;
-    esp_err_t stState = ESP_OK;
-
-    if ( wCAN0BusState == eCAN_BUS_OK ) 
-    {
-        CAN_receive(stCANBus0);
-    }
 
     /* Update time since power up */
     dwTimeSincePowerUpms++;
@@ -205,7 +195,6 @@ void task_100ms(void)
     if (stState != ESP_OK) {
         ESP_LOGE("CAN", "Action failed: %s", esp_err_to_name(stState));
     }
-    
 
     /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
