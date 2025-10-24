@@ -57,8 +57,8 @@ esp_err_t ESPNOW_init(void);
 esp_err_t NVS_init(void);
 esp_err_t ESPNOW_fill_buffer(const byte *abyData, byte bNDataLength);
 esp_err_t ESPNOW_empty_buffer(void);
-static void ESPNOW_tx_callback(const byte *abyMACAddress, esp_now_send_status_t stStatus);
-static void ESPNOW_rx_callback(const esp_now_recv_info_t *recv_info, const byte *byData, byte byNLength);
+static void ESPNOW_tx_callback(const wifi_tx_info_t *tx_info, esp_now_send_status_t stStatus);
+static void ESPNOW_rx_callback(const esp_now_recv_info_t *recv_info, const uint8_t *byData, int byNLength);
 
 
 /* --------------------------- Functions ----------------------------- */
@@ -178,13 +178,13 @@ esp_err_t NVS_init(void)
     return stStatus;
 }
 
-static void ESPNOW_tx_callback(const byte *abyMACAddress, esp_now_send_status_t stStatus)
+static void ESPNOW_tx_callback(const wifi_tx_info_t *tx_info, esp_now_send_status_t stStatus)
 {
     /*
     *===========================================================================
     *   ESPNOW_tx_callback
     *   Takes:   stStatus - status of send
-    *            abyMACAddress - MAC address of the receiver
+    *            tx_info - information about the transmission
     * 
     *   Returns: None
     * 
@@ -197,13 +197,15 @@ static void ESPNOW_tx_callback(const byte *abyMACAddress, esp_now_send_status_t 
     *===========================================================================
     */
 
+    byte abyMACAddress[6];
+    memcpy(abyMACAddress, tx_info->des_addr, sizeof(abyMACAddress));
     ESP_LOGI("ESP-NOW","sent to : %02X:%02X:%02X:%02X:%02X:%02X status: %d", 
         abyMACAddress[0], abyMACAddress[1], abyMACAddress[2],
         abyMACAddress[3], abyMACAddress[4], abyMACAddress[5], stStatus);
 
 }
 
-static void ESPNOW_rx_callback(const esp_now_recv_info_t *recv_info, const byte *byData, byte byNLength)
+static void ESPNOW_rx_callback(const esp_now_recv_info_t *recv_info, const uint8_t *byData, int byNLength)
 {
      /*
     *===========================================================================

@@ -9,6 +9,12 @@
 // #define GPIO_CAN1_TX XX
 // #define GPIO_CAN1_RX XX
 
+#define SPI_MOSI 18
+#define SPI_MISO 20
+#define SPI_SCK 19
+#define SPI_SD_CS 17
+
+
 #define SFR_TAG             "CAN_BLASTER"
 
 #endif // SFR_PIN
