@@ -53,6 +53,7 @@ dword dwTimeSincePowerUpms = 0;
 /* --------------------------- Function prototypes ----------------------------- */
 
 /* --------------------------- Definitions ----------------------------- */
+#define TIME_BETWEEN_CAN_MSGS 10  // ms
 
 /* --------------------------- Function prototypes ----------------------------- */
 void pin_toggle(gpio_num_t pin);
@@ -105,6 +106,26 @@ void task_1ms(void)
     static qword qwtTaskTimer;
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_1MS] = eTASK_ACTIVE;
+    static dword dwNMsgCounter = 0;
+    static dword dwNTaskCounter = 0;
+
+    CAN_frame_t stTxFrame;
+    stTxFrame.dwID = 0x100;
+    stTxFrame.byDLC = 8;
+    if (dwNTaskCounter >= TIME_BETWEEN_CAN_MSGS) 
+    {
+        dwNTaskCounter = 0;
+        for (word wNCounter = 4; wNCounter < 8; wNCounter++) 
+        {
+            stTxFrame.abData[wNCounter] = 0;
+        }
+        memcpy(&stTxFrame.abData[0], &dwNMsgCounter, sizeof(dword));
+        dwNMsgCounter++;
+    
+        /* CAN Tx */
+        CAN_transmit(stCANBus0, stTxFrame);
+    }
+    dwNTaskCounter++;
 
     /* Update time since power up */
     dwTimeSincePowerUpms++;
