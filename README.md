@@ -25,4 +25,9 @@
 Successful build output:
  <img width="940" height="364" alt="image" src="https://github.com/user-attachments/assets/529d6a68-6614-4695-98a8-2f9113cf8b92" />
 
-9.	Now clone the SFR ESP repo
+9.	Now clone the SFR ESP repo. You can do this however you like, personally I would run "git clone https://github.com/cole-not-coal/SFRESP32.git" in the folder you would like the repo to be in.
+
+10. Now Open the folder in VSCode and you should be good to go.	
+
+
+
