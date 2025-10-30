@@ -79,11 +79,11 @@ void IRAM_ATTR call_back_100ms(void *arg)
 static void main_init(void)
 {
     esp_err_t stStatus;
-    stStatus = ESPNOW_init();
-    if (stStatus != ESP_OK)
-    {
-        ESP_LOGE(SFR_TAG, "Failed to initialise ESP-NOW: %s", esp_err_to_name(stStatus));
-    }
+    // stStatus = ESPNOW_init();
+    // if (stStatus != ESP_OK)
+    // {
+    //     ESP_LOGE(SFR_TAG, "Failed to initialise ESP-NOW: %s", esp_err_to_name(stStatus));
+    // }
     stStatus = CAN_init(TRUE);
     if (stStatus != ESP_OK)
     {
