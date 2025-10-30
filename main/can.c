@@ -7,49 +7,41 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "pin.h"
 #include "can.h"
-#include "string.h"
-#include "espnow.h"
-
-#include "esp_log.h"
-#include "esp_err.h"
 
 /* --------------------------- Global Variables ----------------------------- */
 #ifdef GPIO_CAN0_TX
-twai_handle_t stCANBus0;
+twai_node_handle_t stCANBus0;
 #endif
 #ifdef GPIO_CAN1_TX
-twai_handle_t stCANBus1;
+twai_node_handle_t stCANBus1;
 #endif
+CAN_frame_t *stCANRingBuffer = NULL;
+_Atomic word wRingBufHead = 0; // next write index
+_Atomic word wRingBufTail = 0; // next read index
+
 /* --------------------------- Local Variables ------------------------------ */
-extern CAN_frame_t *stCANRingBuffer;
-extern _Atomic word wRingBufHead;
-extern _Atomic word wRingBufTail;
 
 
 /* --------------------------- Function prototypes -------------------------- */
-esp_err_t CAN_receive(twai_handle_t stCANBus);
-esp_err_t CAN_transmit(twai_handle_t stCANBus, CAN_frame_t stFrame);
-esp_err_t CAN_init(void);
-void process_CAN_message(twai_message_t *stMessage);
-esp_err_t CAN_empty_buffer(twai_handle_t stCANBus);
+esp_err_t CAN_init(boolean bEnableRx);
+esp_err_t CAN_transmit(twai_node_handle_t stCANBus, CAN_frame_t stFrame);
+bool CAN_receive_callback(twai_node_handle_t stCANBus, const twai_rx_done_event_data_t *edata, void *stRxCallback);
+esp_err_t CAN_receive_debug();
+void CAN_bus_diagnosics();
+const char* CAN_error_state_to_string(twai_error_state_t stState);
 
 /* --------------------------- Definitions ---------------------------------- */
-#define CAN0_CONTROLLER_ID 0
+#define CAN0_BITRATE 200000  // 200kbps
 #define CAN0_TX_QUEUE_LENGTH 10
-#define CAN0_RX_QUEUE_LENGTH 10
-#define CAN0_TX_MESSAGE_LENGTH 8
 
-#define CAN1_CONTROLLER_ID 1
+#define CAN1_BITRATE 1000000  // 1 Mbps
 #define CAN1_TX_QUEUE_LENGTH 10
-#define CAN1_RX_QUEUE_LENGTH 10
-#define CAN1_TX_MESSAGE_LENGTH 8
 
 #define MAX_CAN_TXS_PER_CALL 1
 
 /* --------------------------- Functions ------------------------------------ */
-esp_err_t CAN_init(void)
+esp_err_t CAN_init(boolean bEnableRx)
 {
     /*
     *===========================================================================
@@ -63,215 +55,316 @@ esp_err_t CAN_init(void)
     *=========================================================================== 
     *   Revision History:
     *   20/04/25 CP Initial Version
+    *   29/10/25 CP Updated to use onchip driver, old driver depriecated
     *
     *===========================================================================
     */
-    esp_err_t stState0 = ESP_OK;
-    esp_err_t stState1 = ESP_OK;
 
+    esp_err_t stState = ESP_OK;
+
+    /* Bus 0 */
     #ifdef GPIO_CAN0_TX
-    /* Build Config for CAN0 if RX and TX pins are defined */
-    twai_general_config_t stConfig = TWAI_GENERAL_CONFIG_DEFAULT_V2(CAN0_CONTROLLER_ID,
-                            GPIO_CAN0_TX, GPIO_CAN0_RX, TWAI_MODE_NORMAL);
-    
-    stConfig.tx_queue_len = CAN0_TX_QUEUE_LENGTH;
-    stConfig.rx_queue_len = CAN0_RX_QUEUE_LENGTH;
-    twai_timing_config_t stTimingConfig = TWAI_TIMING_CONFIG_1MBITS();
-    twai_filter_config_t stFilterConfig = TWAI_FILTER_CONFIG_ACCEPT_ALL();
-    
-    /* Install driver */
-    stState0 = twai_driver_install_v2(&stConfig, &stTimingConfig, &stFilterConfig, &stCANBus0);
-    if ( stState0 == ESP_OK )
+    twai_onchip_node_config_t stCANNode0Config = 
     {
-        /* If driver successfully installed then start Bus0 */
-        stState0 = twai_start_v2(stCANBus0);   
+        .io_cfg.tx = GPIO_CAN0_TX,
+        .io_cfg.rx = GPIO_CAN0_RX,
+        .bit_timing.bitrate = CAN0_BITRATE,
+        .tx_queue_depth = CAN0_TX_QUEUE_LENGTH,
+        .intr_priority = 3,
+    };
+    stState = twai_new_node_onchip(&stCANNode0Config, &stCANBus0);
+    if ( stState != ESP_OK )
+    {
+        ESP_LOGE("CAN", "CAN0 twai_new_node_onchip failed: %s", esp_err_to_name(stState));  
     }
+    if (bEnableRx) 
+    {
+        twai_event_callbacks_t stRxCallback =
+        {
+            .on_rx_done = CAN_receive_callback,
+        };
+        stState = twai_node_register_event_callbacks(stCANBus0, &stRxCallback, NULL);
+        if ( stState != ESP_OK )
+        {
+            ESP_LOGE("CAN", "CAN0 failed to register callback: %s", esp_err_to_name(stState));  
+        }
+    }
+    stState = twai_node_enable(stCANBus0); 
+    if ( stState != ESP_OK )
+    {
+        ESP_LOGE("CAN", "CAN0 Bus failed to start: %s", esp_err_to_name(stState));  
+    }
+
     #endif
 
+    /* Bus 1 */
     #ifdef GPIO_CAN1_TX
-    /* Build config for CAN1 if RX and TX pins are defined */
-    twai_general_config_t stConfig = TWAI_GENERAL_CONFIG_DEFAULT_V2(CAN1_CONTROLLER_ID,
-                            GPIO_CAN1_TX, GPIO_CAN1_RX, TWAI_MODE_NORMAL);
-    
-    stConfig.tx_queue_len = CAN1_TX_QUEUE_LENGTH;
-    stConfig.rx_queue_len = CAN1_RX_QUEUE_LENGTH;
-    twai_timing_config_t stTimingConfig = TWAI_TIMING_CONFIG_1MBITS();
-    twai_filter_config_t stFilterConfig = TWAI_FILTER_CONFIG_ACCEPT_ALL();
-    
-    /* Install driver */
-    stState1 = twai_driver_install_v2(&stConfig, &stTimingConfig, &stFilterConfig, &stCANBus1);
-    if ( stState1 == ESP_OK )
+    twai_onchip_node_config_t stCANNode1Config = 
     {
-        /* If driver successfully installed then start Bus1 */
-        stState1 = twai_start_v2(stCANBus1);    
+        .io_cfg.tx = GPIO_CAN1_TX,
+        .io_cfg.rx = GPIO_CAN1_RX,
+        .bit_timing.bitrate = CAN1_BITRATE,
+        .tx_queue_depth = CAN1_TX_QUEUE_LENGTH,
+    };
+    stState = twai_new_node_onchip(&stCANNode1Config, &stCANBus1);
+    if ( stState != ESP_OK )
+    {
+        ESP_LOGE("CAN", "CAN1 twai_new_node_onchip failed: %s", esp_err_to_name(stState));  
     }
+    stState = twai_node_register_event_callbacks(stCANBus1, &stRxCallback, NULL);
+    if ( stState != ESP_OK )
+    {
+        ESP_LOGE("CAN", "CAN1 failed to register callback: %s", esp_err_to_name(stState));  
+    }
+    stState = twai_node_enable(stCANBus1); 
+    if ( stState != ESP_OK )
+    {
+        ESP_LOGE("CAN", "CAN1 Bus failed to start: %s", esp_err_to_name(stState));  
+    }
+
     #endif
 
-    /* Return the highest error code (in most cases both will be ESP_OK = 0) */
-    if ( stState0 > stState1 )
-    {
-        return stState0;
+    /* Allocate Ring Buffer */
+    CAN_frame_t *stCANRingBufferInitial = (CAN_frame_t *)malloc(sizeof(CAN_frame_t) 
+                                        * CAN_QUEUE_LENGTH);                      
+    if (!stCANRingBufferInitial) {
+        ESP_LOGE("ESP-NOW", "Failed to allocate ring buffer (len=%u)", CAN_QUEUE_LENGTH);
+        return ESP_ERR_NO_MEM;
     }
-    else
-    {
-        return stState1;
-    }
+    stCANRingBuffer = stCANRingBufferInitial;   
+    __atomic_store_n(&wRingBufHead, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&wRingBufTail, 0, __ATOMIC_RELAXED);  
+
+    return stState;
 }
 
-esp_err_t CAN_transmit(twai_handle_t stCANBus, CAN_frame_t stFrame)
+esp_err_t CAN_transmit(twai_node_handle_t stCANBus, CAN_frame_t stFrame)
 {
     /*
     *===========================================================================
     *   CAN_transmit
     *   Takes:   stCANBus: Pointer to the CAN bus handle
-    *            dwNID: ID of the message to send
-    *            qwNData: Pointer to the data to send
+    *            stFrame: CAN frame to transmit
     * 
     *   Returns: ESP_OK if successful, error code if not.
     * 
-    *   Transmits a CAN message on the given CAN bus.
+    *   Transmits a CAN message on the given CAN bus. in debug mode it prints the
+    *   status of the bus for every call.
+    *=========================================================================== 
+    *   Revision History:
+    *   20/04/25 CP Initial Version
+    *   29/10/25 CP Updated to use onchip driver, old driver depriecated
+    *
+    *===========================================================================
+    */
+    esp_err_t stState;
+
+    /* Construct message */
+    twai_frame_t stMessage = 
+    {
+        .header.id  = stFrame.dwID,
+        .header.dlc = stFrame.byDLC,
+        .header.ide = 0,
+        .buffer     = stFrame.abData,
+        .buffer_len = sizeof(stFrame.abData)
+    };
+    
+    /* Transmit message */
+    stState = twai_node_transmit(stCANBus, &stMessage, FALSE);
+    
+    return stState;
+}
+
+esp_err_t CAN_receive_debug()
+{   
+    /*
+    *===========================================================================
+    *   CAN_receive_debug
+    *   Takes:   stCANBus: Pointer to the CAN bus handle
+    *            edata: No idea read https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/twai.html
+    *            stRxCallback: see above
+    * 
+    *   Returns: ESP_OK if successful, error code if not. debug func, fuck about
+    * 
+    *=========================================================================== 
+    *   Revision History:
+    *   29/10/25 CP Initial Version
+    *
+    *===========================================================================
+    */
+
+    if (!stCANRingBuffer) 
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    /* Load ring buffer head and tail */
+    dword dwLocalHead = __atomic_load_n(&wRingBufHead, __ATOMIC_ACQUIRE);
+    dword dwLocalTail = __atomic_load_n(&wRingBufTail, __ATOMIC_RELAXED);
+    word wCounter = 0;
+        
+    /* Until the ring buffer is empty or the max number of messages is reached send CAN messages */ 
+    while (dwLocalTail != dwLocalHead) 
+    {
+        CAN_frame_t stCANFrame = stCANRingBuffer[dwLocalTail];   
+        /* Print CAN Msg */
+        qword qwData = 0;
+        for (int NCounter = 0; NCounter < stCANFrame.byDLC; NCounter++) {
+            qwData |= ((qword)stCANFrame.abData[NCounter] << (NCounter * 8));
+        }
+        ESP_LOGI("CAN", "Received CAN message ID: 0x%03X, DLC: %d, Data: %16X", stCANFrame.dwID, stCANFrame.byDLC, qwData);
+
+        /* Advance tail */ 
+        dwLocalTail++;
+        wCounter++;
+        if (dwLocalTail >= CAN_QUEUE_LENGTH) 
+        {
+            dwLocalTail = 0;
+        }
+    }
+    
+    /* Publish new tail */
+    __atomic_store_n(&wRingBufTail, dwLocalTail, __ATOMIC_RELEASE);
+    return ESP_OK;
+}
+
+const char* CAN_error_state_to_string(twai_error_state_t stState) {
+    switch (stState) {
+        case TWAI_ERROR_ACTIVE:  return "TWAI_ERROR_ACTIVE";
+        case TWAI_ERROR_WARNING: return "TWAI_ERROR_WARNING";
+        case TWAI_ERROR_PASSIVE: return "TWAI_ERROR_PASSIVE";
+        case TWAI_ERROR_BUS_OFF: return "TWAI_ERROR_BUS_OFF";
+        default:                 return "UNKNOWN_TWAI_ERROR_STATE";
+    }
+}
+
+void CAN_bus_diagnosics()
+{
+    /*
+    *===========================================================================
+    *   CAN_bus_diagnosics
+    *   Takes:   stCANBus: Pointer to the CAN bus handle
+    * 
+    *   Returns: Nothing.
+    * 
+    *   Checks the status of the CAN bus and attempts to recover if there is an
+    *   error.
     *=========================================================================== 
     *   Revision History:
     *   20/04/25 CP Initial Version
     *
     *===========================================================================
     */
-    twai_message_t stMessage;
-    esp_err_t stState;
-    twai_status_info_t stBusStatus;
-    word wDataIndex;
 
-    /* Validate inputs */
-    if (!stCANBus) {
-        ESP_LOGE("CAN", "CAN_transmit: NULL stCANBus handle");
-        return ESP_ERR_INVALID_ARG;
+    twai_node_status_t stBusStatus;
+    twai_node_record_t stBusStatistics;
+    static twai_error_state_t stLastErrorState = TWAI_ERROR_ACTIVE;
+
+    #ifdef GPIO_CAN0_TX
+    /* Check if the CAN bus is in error state and recover */
+    twai_node_get_info(stCANBus0, &stBusStatus, &stBusStatistics);
+    /* Detect state change */
+    if (stBusStatus.state != stLastErrorState) {
+        ESP_LOGW("CAN", "CAN0 bus error state changed from %s to %s",
+            CAN_error_state_to_string(stLastErrorState),
+            CAN_error_state_to_string(stBusStatus.state));
+        stLastErrorState = stBusStatus.state;
     }
-
-    #ifdef DEBUG
-    twai_status_info_t dbgStatus;
-    if ( twai_get_status_info_v2(stCANBus, &dbgStatus) == ESP_OK ) {
-        ESP_LOGI("CAN", "DBG status state=%d tec=%lu rec=%lu msgs_tx=%lu msgs_rx=%lu",
-                 dbgStatus.state, dbgStatus.tx_error_counter, dbgStatus.rx_error_counter, dbgStatus.msgs_to_tx, dbgStatus.msgs_to_rx);
-    } else {
-        ESP_LOGW("CAN", "DBG: twai_get_status_info_v2 failed");
+    /* If bad error then restart bus */
+    if (stBusStatus.state == TWAI_ERROR_BUS_OFF) 
+    {
+        ESP_LOGW("CAN", "Recovering bus 0 : %s", esp_err_to_name(twai_node_recover(stCANBus0))); 
     }
     #endif
 
-    /* init message */
-    memset(&stMessage, 0, sizeof(stMessage));
-
-    /* Construct message */
-    stMessage.identifier = stFrame.dwID;
-    stMessage.data_length_code = stFrame.byDLC;
-    stMessage.flags = TWAI_MSG_FLAG_NONE;
-    memcpy(stMessage.data, stFrame.abData, stMessage.data_length_code);
-    
-    /* Transmit message */
-    stState = twai_transmit_v2(stCANBus, &stMessage, FALSE);
-    
-    return stState;
+    #ifdef GPIO_CAN1_TX
+    /* Check if the CAN bus is in error state and recover */
+    twai_node_get_info(stCANBus1, &stBusStatus, &stBusStatistics);
+    /* Detect state change */
+    if (stBusStatus.state != stLastErrorState) {
+        ESP_LOGW("CAN", "CAN1 bus error state changed from %s to %s",
+            CAN_error_state_to_string(stLastErrorState),
+            CAN_error_state_to_string(stBusStatus.state));
+        stLastErrorState = stBusStatus.state;
+    }
+    /* If bad error then restart bus */
+    if (stBusStatus.state == TWAI_ERROR_BUS_OFF) 
+    {
+        ESP_LOGW("CAN", "Recovering bus 1: %s", esp_err_to_name(twai_node_recover(stCANBus1))); 
+    }
+    #endif
 }
 
-esp_err_t CAN_receive(twai_handle_t stCANBus)
+bool CAN_receive_callback(twai_node_handle_t stCANBus, const twai_rx_done_event_data_t *edata, void *stRxCallback)
 {
     /*
     *===========================================================================
-    *   CAN_receive
+    *   CAN_receive_callback
     *   Takes:   stCANBus: Pointer to the CAN bus handle
+    *            edata: No idea read https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/twai.html
+    *            stRxCallback: see above
     * 
-    *   Returns: ESP_OK if successful, error code if not.dwNID
+    *   Returns: 1 if successful, 0 not.
     * 
-    *   Checks if data is in the RX buffer and if adds it to the ring buffer. If
-    *   there is no data it returns ESP_OK. If the ring buffer is full it drops
-    *   the message.
+    *   The callback for CAN Rx, adds the message to the ring buffer. 
+    *   If the ring buffer is full it drops the message.
+    * 
     *=========================================================================== 
     *   Revision History:
     *   20/04/25 CP Initial Version
     *   08/10/25 CP Updated to implement ring buffer
+    *   30/10/25 CP Updated to use onchip driver, old driver depriecated
     *
     *===========================================================================
     */
-    dword dwNalerts;
-    word wMsgIndex;
-    twai_status_info_t stBusStatus;
-    esp_err_t stState = twai_get_status_info_v2(stCANBus, &stBusStatus);
-    twai_message_t stMessage;
+
+    esp_err_t stState;
     CAN_frame_t stRxedFrame;
+    /* Initialise Rx Buffer */
+    uint8_t abyRxBuffer[8];
+    twai_frame_t stRxFrame = {
+        .buffer = abyRxBuffer,
+        .buffer_len = sizeof(abyRxBuffer),
+    };
     
-    for (wMsgIndex = 0; wMsgIndex < stBusStatus.msgs_to_rx; wMsgIndex++)
+    stState = twai_node_receive_from_isr(stCANBus, &stRxFrame);
+    if ( stState == ESP_OK )
     {
-        stState = twai_receive_v2(stCANBus, &stMessage, FALSE);
-        if ( stState != ESP_OK ) /* Rx Fail */
+        /* Put CAN Frame into Ring Buffer */
+        if (!stCANRingBuffer) 
         {
-            ESP_LOGE("CAN", "Receive failed: %s", esp_err_to_name(stState));
+            return ESP_ERR_INVALID_STATE;
         }
-        else /* Put CAN Frame into Ring Buffer */
+
+        /* Get local copy of queue head and tail */
+        word wLocalHead = __atomic_load_n(&wRingBufHead, __ATOMIC_RELAXED);
+        word wNext = wLocalHead + 1;
+        if (wNext >= CAN_QUEUE_LENGTH) 
         {
-            if (!stCANRingBuffer) 
-            {
-                return ESP_ERR_INVALID_STATE;
-            }
-
-            /* Get local copy of queue head and tail */
-            word wLocalHead = __atomic_load_n(&wRingBufHead, __ATOMIC_RELAXED);
-            word wNext = wLocalHead + 1;
-            if (wNext >= CAN_QUEUE_LENGTH) 
-            {
-                wNext = 0;
-            }
-            word wLocalTail = __atomic_load_n(&wRingBufTail, __ATOMIC_ACQUIRE);
-
-            if (wNext == wLocalTail) {
-                /* Buffer full, drop frame */
-                return ESP_ERR_NO_MEM;
-            }
-
-            /* Copy frame into buffer */
-            stRxedFrame.dwID = (dword)stMessage.identifier;
-            stRxedFrame.byDLC = (byte)stMessage.data_length_code;
-            memcpy(stRxedFrame.abData, stMessage.data, stMessage.data_length_code);
-            stCANRingBuffer[wLocalHead] = stRxedFrame;
-
-            /* Publish new head */
-            __atomic_store_n(&wRingBufHead, wNext, __ATOMIC_RELEASE);
-
+            wNext = 0;
         }
+        word wLocalTail = __atomic_load_n(&wRingBufTail, __ATOMIC_ACQUIRE);
+
+        if (wNext == wLocalTail) {
+            /* Buffer full, drop frame */
+            return ESP_ERR_NO_MEM;
+        }
+
+        /* Copy frame into buffer */
+        stRxedFrame.dwID = (dword)stRxFrame.header.id;
+        stRxedFrame.byDLC = (byte)stRxFrame.header.dlc;
+        memcpy(stRxedFrame.abData, stRxFrame.buffer, stRxFrame.buffer_len);
+        stCANRingBuffer[wLocalHead] = stRxedFrame;
+
+        /* Publish new head */
+        __atomic_store_n(&wRingBufHead, wNext, __ATOMIC_RELEASE);
+        return TRUE;
     }
 
-    return stState;
+    return FALSE;
 }
 
-void process_CAN_message(twai_message_t *stMessage)
-{
-    /*
-    *===========================================================================
-    *   process_CAN_message - Debug function
-    *   Takes:   stMessage: Pointer to a received can message
-    * 
-    *   Returns: Nothing.
-    * 
-    *   Prints the message to the terminal. This is temporary and should be
-    *   probably do something else.
-    *   TODO: Make this work with the proper SFR types. char... eww
-    *=========================================================================== 
-    *   Revision History:
-    *   20/04/25 CP Initial Version
-    *
-    *===========================================================================
-    */
-    char abyMessage[250];
-    uint16_t wMsgIndex;
-    int nPos = 0;
-
-    nPos = snprintf(abyMessage, sizeof(abyMessage), "ID: %03lx |", stMessage->identifier);
-    for ( wMsgIndex = 0; wMsgIndex < stMessage->data_length_code && nPos < (int)sizeof(abyMessage) - 4; wMsgIndex++ )
-    {
-        nPos += snprintf(&abyMessage[nPos], sizeof(abyMessage) - nPos, " %02x", (unsigned int)stMessage->data[wMsgIndex]);
-    }
-    ESP_LOGI(SFR_TAG, "%s", abyMessage);
-}
-
-esp_err_t CAN_empty_buffer(twai_handle_t stCANBus)
+esp_err_t CAN_empty_buffer(twai_node_handle_t stCANBus)
 {
     /*
     *===========================================================================
@@ -289,7 +382,6 @@ esp_err_t CAN_empty_buffer(twai_handle_t stCANBus)
     *===========================================================================
     */
     esp_err_t stStatus = ESP_OK;
-    byte byBytesToSend[MAX_ESPNOW_PAYLOAD];
     if (!stCANRingBuffer) 
     {
         return ESP_ERR_INVALID_STATE;

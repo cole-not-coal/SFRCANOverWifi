@@ -84,7 +84,7 @@ static void main_init(void)
     {
         ESP_LOGE(SFR_TAG, "Failed to initialise ESP-NOW: %s", esp_err_to_name(stStatus));
     }
-    stStatus = CAN_init();
+    stStatus = CAN_init(TRUE);
     if (stStatus != ESP_OK)
     {
         ESP_LOGE(SFR_TAG, "Failed to initialise CAN: %s", esp_err_to_name(stStatus));

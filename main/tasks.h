@@ -1,6 +1,16 @@
 #ifndef SFRTasks
 #include "driver/gpio.h"
+#include <stdint.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_task_wdt.h"
+#include "esp_timer.h"
 #include "sfrtypes.h"
+
+#include "pin.h"
+#include "can.h"
+#include "espnow.h"
+#include "sdcard.h"
 
 /* Function Definitions*/
 void task_BG(void);

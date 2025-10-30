@@ -9,17 +9,7 @@ Tasks are:
 
 Written by Cole Perera for Sheffield Formula Racing 2025
 */
-
-#include <stdint.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_task_wdt.h"
-#include "esp_timer.h"
-#include "pin.h"
 #include "tasks.h"
-#include "can.h"
-#include "espnow.h"
-#include "sdcard.h"
 
 /* --------------------------- Local Types ----------------------------- */
 typedef enum {
@@ -34,25 +24,20 @@ typedef enum {
     eTASK_INACTIVE,
 } eTaskState_t;
 
-typedef enum {
-    eCAN_BUS_OK = 0,
-    eCAN_BUS_ERROR,
-} eCANBusState_t;
-
 /* --------------------------- Local Variables ----------------------------- */
-extern twai_handle_t stCANBus0;
+extern twai_node_handle_t stCANBus0;
 extern uint8_t byMACAddress[6];
 
 /* --------------------------- Global Variables ----------------------------- */
 dword adwMaxTaskTime[eTASK_TOTAL];
 dword adwLastTaskTime[eTASK_TOTAL];
 eTaskState_t astTaskState[eTASK_TOTAL];
-word wCAN0BusState;
 dword dwTimeSincePowerUpms = 0;
 
 /* --------------------------- Function prototypes ----------------------------- */
 
 /* --------------------------- Definitions ----------------------------- */
+#define TIME_BETWEEN_CAN_MSGS 100  // ms
 
 /* --------------------------- Function prototypes ----------------------------- */
 void pin_toggle(gpio_num_t pin);
@@ -123,9 +108,6 @@ void task_100ms(void)
     /* Task that runs every 100ms. */
     static qword qwtTaskTimer;
     static word wNCounter;
-    static qword qwNTxData = 0x123;
-    esp_err_t stState;
-    twai_status_info_t stBusStatus;
 
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_100MS] = eTASK_ACTIVE;
@@ -154,46 +136,7 @@ void task_100ms(void)
     wNCounter++;
 
     /* Check if the CAN bus is in error state and recover */
-    twai_get_status_info_v2(stCANBus0, &stBusStatus);
-    switch (stBusStatus.state){
-    case TWAI_STATE_STOPPED:
-    {
-        wCAN0BusState = eCAN_BUS_ERROR;
-        ESP_LOGW("CAN", "Bus is stopped. Starting...");
-        stState = twai_start_v2(stCANBus0);
-        break;
-    }
-    case TWAI_STATE_BUS_OFF:
-    {
-        wCAN0BusState = eCAN_BUS_ERROR;
-        ESP_LOGW("CAN", "Bus is in BUS_OFF. Attempting to recover...");
-        stState = twai_initiate_recovery_v2(stCANBus0);
-        break;
-    } 
-    case TWAI_STATE_RECOVERING:
-    {
-        wCAN0BusState = eCAN_BUS_ERROR;
-        stState = ESP_OK;
-        ESP_LOGW("CAN", "Bus is recovering...");
-        break;
-    }
-    case TWAI_STATE_RUNNING:
-    {
-        stState = ESP_OK;
-        wCAN0BusState = eCAN_BUS_OK;
-        break;
-    }
-    default:
-    {
-        wCAN0BusState = eCAN_BUS_ERROR;
-        ESP_LOGW("CAN", "Bus is so fucked even it does not know what is wrong.");
-        stState = ESP_OK;
-        break;
-    }
-    }
-    if (stState != ESP_OK) {
-        ESP_LOGE("CAN", "Action failed: %s", esp_err_to_name(stState));
-    }
+    CAN_bus_diagnosics();
 
     /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
