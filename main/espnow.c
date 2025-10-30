@@ -45,9 +45,9 @@ typedef struct {
 * 3: 9C:9E:6E:77:AF:50
 */
 uint8_t byMACAddress[6] = {0x8C, 0xBF, 0xEA, 0xCF, 0x90, 0x34}; // Change to the MAC address of target device
-CAN_frame_t *stCANRingBuffer = NULL;
-_Atomic word wRingBufHead = 0; // next write index
-_Atomic word wRingBufTail = 0; // next read index
+extern CAN_frame_t *stCANRingBuffer;
+extern _Atomic word wRingBufHead;
+extern _Atomic word wRingBufTail;
 
 /* --------------------------- Definitions ----------------------------- */
 #define PACKED_FRAME_SIZE 11 // 2 bytes ID + 1 byte DLC + 8 bytes data
@@ -113,18 +113,7 @@ esp_err_t ESPNOW_init(void)
     esp_read_mac(abyThisESPMacAddr, ESP_MAC_WIFI_STA);
     ESP_LOGI("ESP-NOW", "ESP MAC Address: %02X:%02X:%02X:%02X:%02X:%02X", 
              abyThisESPMacAddr[0], abyThisESPMacAddr[1], abyThisESPMacAddr[2],
-             abyThisESPMacAddr[3], abyThisESPMacAddr[4], abyThisESPMacAddr[5]);
-    
-    /* Allocate Ring Buffer */
-    CAN_frame_t *stCANRingBufferInitial = (CAN_frame_t *)malloc(sizeof(CAN_frame_t) 
-                                        * CAN_QUEUE_LENGTH);                      
-    if (!stCANRingBufferInitial) {
-        ESP_LOGE("ESP-NOW", "Failed to allocate ring buffer (len=%u)", CAN_QUEUE_LENGTH);
-        return ESP_ERR_NO_MEM;
-    }
-    stCANRingBuffer = stCANRingBufferInitial;   
-    __atomic_store_n(&wRingBufHead, 0, __ATOMIC_RELAXED);
-    __atomic_store_n(&wRingBufTail, 0, __ATOMIC_RELAXED);    
+             abyThisESPMacAddr[3], abyThisESPMacAddr[4], abyThisESPMacAddr[5]);  
 
     #ifdef TX_SIDE
     /* Add Peers */
