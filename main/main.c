@@ -22,6 +22,7 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #include "pin.h"
 #include "espnow.h"
 #include "sdcard.h"
+#include "adc.h"
 
 /* --------------------------- Definitions ----------------------------- */
 #define TIMER_INTERVAL_WD       100     // in microseconds
@@ -79,22 +80,27 @@ void IRAM_ATTR call_back_100ms(void *arg)
 static void main_init(void)
 {
     esp_err_t stStatus;
+    /* Initialises Features/ Peripherals, Comment out as needed*/
+    /* ESP-NOW */
     stStatus = ESPNOW_init();
     if (stStatus != ESP_OK)
     {
         ESP_LOGE(SFR_TAG, "Failed to initialise ESP-NOW: %s", esp_err_to_name(stStatus));
     }
+    /* CAN BUS */
     stStatus = CAN_init(TRUE);
     if (stStatus != ESP_OK)
     {
         ESP_LOGE(SFR_TAG, "Failed to initialise CAN: %s", esp_err_to_name(stStatus));
     }
-    
+    /* SD CARD */
     stStatus = SD_card_init();
     if (stStatus != ESP_OK)
     {
         ESP_LOGE(SFR_TAG, "Failed to initialise SD Card: %s", esp_err_to_name(stStatus));
     }
+    /* ADC */
+    
 
     /* Timers and GPIO cause a hard fault on fail so no error warning */
     GPIO_init();
