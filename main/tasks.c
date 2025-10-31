@@ -27,6 +27,7 @@ typedef enum {
 /* --------------------------- Local Variables ----------------------------- */
 extern twai_node_handle_t stCANBus0;
 extern uint8_t byMACAddress[6];
+extern esp_reset_reason_t eResetReason;
 
 /* --------------------------- Global Variables ----------------------------- */
 dword adwMaxTaskTime[eTASK_TOTAL];
@@ -115,7 +116,24 @@ void task_100ms(void)
         /* Toggle LED */
         pin_toggle(GPIO_ONBOARD_LED); 
 
-    }
+        /* Send Status Message */
+        CAN_transmit(stCANBus0, (CAN_frame_t)
+        {
+            .dwID = 0xFF, // UPDATE THIS FOR EACH DEVICE
+            .byDLC = 8,
+            .abData = {
+                (byte)(adwLastTaskTime[eTASK_1MS] / 50 & 0xFF),          
+                (byte)(adwMaxTaskTime[eTASK_1MS] / 50 & 0xFF),
+                (byte)(adwLastTaskTime[eTASK_100MS] / 500 & 0xFF),       
+                (byte)(adwMaxTaskTime[eTASK_100MS] / 500 & 0xFF),
+                (byte)(adwLastTaskTime[eTASK_BG] / 500 & 0xFF),        
+                (byte)(adwMaxTaskTime[eTASK_BG] / 500 & 0xFF),
+                (byte)((dwTimeSincePowerUpms/4000) >> 6 & 0xFF),
+                (byte)(((dwTimeSincePowerUpms/4000) << 2 | (eResetReason & 0x03)) & 0xFF)
+            }
+        });
+
+    };
 
     if (wNCounter >= 100)
     {
@@ -143,7 +161,6 @@ void task_100ms(void)
         adwMaxTaskTime[eTASK_100MS] = (dword)qwtTaskTimer;
     }
 }
-
 
 void pin_toggle(gpio_num_t pin)
 {

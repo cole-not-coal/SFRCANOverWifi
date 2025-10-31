@@ -1,3 +1,5 @@
+#ifndef ADC_H
+#define ADC_H
 
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
@@ -15,5 +17,7 @@ typedef struct {
 } stADCHandles_t;
 
 /* --------------------------- Function prototypes --------------------- */
-esp_err_t ADC_register(int NPin, ADC_atten_t eNAtten, adc_unit_t eNUnit, stADCHandles_t *stADCHandle);
+esp_err_t adc_register(int NPin, adc_atten_t eNAtten, adc_unit_t eNUnit, stADCHandles_t *stADCHandle);
 float adc_read_voltage(stADCHandles_t *stADCHandle);
+
+#endif // ADC_H

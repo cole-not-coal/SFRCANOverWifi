@@ -35,6 +35,7 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 /* --------------------------- Global Variables ----------------------------- */
 esp_timer_handle_t stTaskInterrupt1ms;
 esp_timer_handle_t stTaskInterrupt100ms;
+esp_reset_reason_t eResetReason;
 
 /* --------------------------- Function prototypes ----------------------------- */
 static void timers_init(void);
@@ -47,6 +48,9 @@ void IRAM_ATTR call_back_100ms(void *arg);
 
 void app_main(void)
 {
+    /* Get reset reason */
+    eResetReason = esp_reset_reason();
+    
     // Register app_main task with the WDT
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL)); 
 

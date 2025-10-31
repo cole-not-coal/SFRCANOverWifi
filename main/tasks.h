@@ -11,6 +11,7 @@
 #include "can.h"
 #include "espnow.h"
 #include "sdcard.h"
+#include "adc.h"
 
 /* Function Definitions*/
 void task_BG(void);
