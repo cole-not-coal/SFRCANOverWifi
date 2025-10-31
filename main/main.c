@@ -50,12 +50,6 @@ void app_main(void)
     // Register app_main task with the WDT
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL)); 
 
-    esp_task_wdt_delete(xTaskGetIdleTaskHandleForCPU(0));  // always exists
-
-    #if CONFIG_FREERTOS_UNICORE == 0  // Dual-core only
-        esp_task_wdt_delete(xTaskGetIdleTaskHandleForCPU(1));
-    #endif
-
     /* Initialise device */
     main_init();
 

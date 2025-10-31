@@ -65,11 +65,8 @@ void task_BG(void)
     }
     if (bTasksComplete) {
         /* Reset the watchdog timer */
-        esp_err_t err = esp_task_wdt_reset();
-        if (err == ESP_ERR_NOT_FOUND) {
-            esp_task_wdt_add(NULL);       
-            esp_task_wdt_reset();           
-        }
+        (void)esp_task_wdt_reset();           
+        
         for (wNTaskCounter = 0; wNTaskCounter < eTASK_TOTAL; wNTaskCounter++)
         {
             astTaskState[wNTaskCounter] = eTASK_INACTIVE;
