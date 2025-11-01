@@ -74,6 +74,9 @@ void task_BG(void)
         }
     }
 
+    /* Flush CAN buffer to ESPNOW */
+    ESPNOW_empty_buffer();
+
     /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
     adwLastTaskTime[eTASK_BG] = (dword)qwtTaskTimer;
@@ -88,6 +91,9 @@ void task_1ms(void)
     static qword qwtTaskTimer;
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_1MS] = eTASK_ACTIVE;
+
+    /* CAN Rx */
+    CAN_receive(stCANBus0);
 
     /* Update time since power up */
     dwTimeSincePowerUpms++;
