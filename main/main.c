@@ -91,15 +91,15 @@ static void main_init(void)
     {
         ESP_LOGE(SFR_TAG, "Failed to initialise CAN: %s", esp_err_to_name(stStatus));
     }
-    /* SD CARD */
-    stStatus = SD_card_init();
-    if (stStatus != ESP_OK)
-    {
-        ESP_LOGE(SFR_TAG, "Failed to initialise SD Card: %s", esp_err_to_name(stStatus));
-    }
+    /* SD Card */
+    // stStatus = SD_card_init();
+    // if (stStatus != ESP_OK)
+    // {
+    //     ESP_LOGE(SFR_TAG, "Failed to initialise SD Card: %s", esp_err_to_name(stStatus));
+    // }
+
     /* ADC */
     
-
     /* Timers and GPIO cause a hard fault on fail so no error warning */
     GPIO_init();
     timers_init();  
