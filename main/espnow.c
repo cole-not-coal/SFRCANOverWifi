@@ -44,13 +44,16 @@ typedef struct {
 * 2: 8C:BF:EA:CF:90:34
 * 3: 9C:9E:6E:77:AF:50
 */
-uint8_t byMACAddress[6] = {0x8C, 0xBF, 0xEA, 0xCF, 0x90, 0x34}; // Change to the MAC address of target device
+uint8_t byMACAddress[6] = {0x8C, 0xBF, 0xEA, 0xCF, 0x94, 0x24}; // Change to the MAC address of target device
 extern CAN_frame_t *stCANRingBuffer;
 extern _Atomic word wRingBufHead;
 extern _Atomic word wRingBufTail;
 
 /* --------------------------- Definitions ----------------------------- */
 #define PACKED_FRAME_SIZE 11 // 2 bytes ID + 1 byte DLC + 8 bytes data
+
+#define TX_SIDE  // Comment out the line acordingly for RX or TX side
+//#define RX_SIDE  // Comment out the line acordingly for RX or TX side
 
 /* --------------------------- Function prototypes --------------------- */
 esp_err_t ESPNOW_init(void);
@@ -249,7 +252,6 @@ esp_err_t ESPNOW_empty_buffer(void)
     *===========================================================================
     */
 
-    esp_err_t stStatus = ESP_OK;
     byte byBytesToSend[MAX_ESPNOW_PAYLOAD];
     if (!stCANRingBuffer) 
     {

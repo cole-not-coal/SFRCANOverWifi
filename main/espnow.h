@@ -23,8 +23,6 @@
 
 esp_err_t ESPNOW_init(void);
 esp_err_t ESPNOW_empty_buffer(void);
-#define SFREspNow
-//#define TX_SIDE  // Comment out the line acordingly for RX or TX side
-//#define RX_SIDE  // Comment out the line acordingly for RX or TX side
 
+#define SFREspNow
 #endif // SFRESPNow

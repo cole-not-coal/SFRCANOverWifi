@@ -92,9 +92,6 @@ void task_1ms(void)
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_1MS] = eTASK_ACTIVE;
 
-    /* CAN Rx */
-    CAN_receive(stCANBus0);
-
     /* Update time since power up */
     dwTimeSincePowerUpms++;
 

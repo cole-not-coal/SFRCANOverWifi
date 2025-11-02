@@ -209,7 +209,6 @@ esp_err_t sdcard_empty_buffer(void)
     }
     dword dwLocalHead = __atomic_load_n(&wRingBufHead, __ATOMIC_ACQUIRE);
     dword dwLocalTail = __atomic_load_n(&wRingBufTail, __ATOMIC_RELAXED);
-    dword dwOffset = 0;
 
     /* Load file */
     FILE *stFile = fopen(abyFilePath, "a");
