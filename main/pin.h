@@ -15,6 +15,6 @@
 #define SPI_SD_CS 17
 
 
-#define SFR_TAG             "CAN_BLASTER"
+#define SFR_TAG             "SFR_ESP32"
 
 #endif // SFR_PIN
