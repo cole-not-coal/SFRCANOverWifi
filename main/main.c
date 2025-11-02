@@ -87,11 +87,11 @@ static void main_init(void)
     esp_err_t stStatus;
     /* Initialises Features/ Peripherals, Comment out as needed*/
     /* ESP-NOW */
-    stStatus = ESPNOW_init();
-    if (stStatus != ESP_OK)
-    {
-        ESP_LOGE(SFR_TAG, "Failed to initialise ESP-NOW: %s", esp_err_to_name(stStatus));
-    }
+    // stStatus = ESPNOW_init();
+    // if (stStatus != ESP_OK)
+    // {
+    //     ESP_LOGE(SFR_TAG, "Failed to initialise ESP-NOW: %s", esp_err_to_name(stStatus));
+    // }
     /* CAN BUS */
     stStatus = CAN_init(TRUE);
     if (stStatus != ESP_OK)

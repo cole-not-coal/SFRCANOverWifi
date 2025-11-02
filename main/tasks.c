@@ -74,9 +74,6 @@ void task_BG(void)
         }
     }
 
-    /* Flush CAN buffer to ESPNOW */
-    ESPNOW_empty_buffer();
-
     /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
     adwLastTaskTime[eTASK_BG] = (dword)qwtTaskTimer;
