@@ -88,6 +88,38 @@ void task_1ms(void)
     static qword qwtTaskTimer;
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_1MS] = eTASK_ACTIVE;
+    static dword dwNMsgCounter = 0;
+    static dword dwNTaskCounter = 0;
+    esp_err_t stStatus;
+
+    CAN_frame_t stTxFrame;
+    stTxFrame.dwID = 0x100;
+    stTxFrame.byDLC = 8;
+    if (dwNTaskCounter >= TIME_BETWEEN_CAN_MSGS) 
+    {
+        dwNTaskCounter = 0;
+        for (word wNCounter = 4; wNCounter < 8; wNCounter++) 
+        {
+            stTxFrame.abData[wNCounter] = 0;
+        }
+        memcpy(&stTxFrame.abData[0], &dwNMsgCounter, sizeof(dword));
+        dwNMsgCounter++;
+    
+        /* CAN Tx */
+        stStatus = CAN_transmit(stCANBus0, stTxFrame);
+        if (stStatus != ESP_OK) 
+        {
+            ESP_LOGE(SFR_TAG, "CAN Transmit Error: %s", esp_err_to_name(stStatus));
+        }
+        
+    }
+    /* CAN Rx */
+    stStatus = CAN_receive_debug();
+    if (stStatus != ESP_OK) 
+    {
+        ESP_LOGE(SFR_TAG, "CAN Receive Error: %s", esp_err_to_name(stStatus));
+    }
+    dwNTaskCounter++;
 
     /* Update time since power up */
     dwTimeSincePowerUpms++;
