@@ -52,13 +52,12 @@ extern _Atomic word wRingBufTail;
 /* --------------------------- Definitions ----------------------------- */
 #define PACKED_FRAME_SIZE 11 // 2 bytes ID + 1 byte DLC + 8 bytes data
 
-#define TX_SIDE  // Comment out the line acordingly for RX or TX side
-//#define RX_SIDE  // Comment out the line acordingly for RX or TX side
+//#define TX_SIDE  // Comment out the line acordingly for RX or TX side
 
 /* --------------------------- Function prototypes --------------------- */
 esp_err_t ESPNOW_init(void);
 esp_err_t NVS_init(void);
-esp_err_t ESPNOW_fill_buffer(const byte *abyData, byte bNDataLength);
+esp_err_t ESPNOW_fill_buffer(const byte *abyData, byte byNDataLength);
 esp_err_t ESPNOW_empty_buffer(void);
 static void ESPNOW_tx_callback(const wifi_tx_info_t *tx_info, esp_now_send_status_t stStatus);
 static void ESPNOW_rx_callback(const esp_now_recv_info_t *recv_info, const uint8_t *byData, int byNLength);
@@ -223,7 +222,7 @@ static void ESPNOW_rx_callback(const esp_now_recv_info_t *recv_info, const uint8
 
     ESPNOW_fill_buffer(byData, byNLength);
     #ifdef DEBUG
-    ESP_LOGI("ESP-NOW", "Data received: %.*s", byNLength, byData); 
+    ESP_LOGI("ESP-NOW", "%d Bytes Recieved.", byNLength); 
     #endif
 
 }
@@ -288,21 +287,18 @@ esp_err_t ESPNOW_empty_buffer(void)
     if (dwOffset > 0) 
     {
         return esp_now_send(byMACAddress, byBytesToSend, dwOffset);
-        #ifdef DEBUG
-        ESP_LOGI("ESP-NOW", "Data sent: %.*s", (int)dwOffset, byBytesToSend); 
-        #endif
     }
     
     return ESP_OK;
 }
 
-esp_err_t ESPNOW_fill_buffer(const byte *abyData, byte bNDataLength)
+esp_err_t ESPNOW_fill_buffer(const byte *abyData, byte byNDataLength)
 {
     /*
     *===========================================================================
     *   ESPNOW_fill_buffer
     *   Takes:   abData - pointer to data Rxed over ESP-NOW
-    *            bNDataLength - length of data Rxed
+    *            byNDataLength - length of data Rxed
     * 
     *   Returns: None
     * 
@@ -313,10 +309,11 @@ esp_err_t ESPNOW_fill_buffer(const byte *abyData, byte bNDataLength)
     *=========================================================================== 
     *   Revision History:
     *   15/10/25 CP Initial Version
+    *   03/11/25 CP Fixed the way this was writing to the ring buffer, god what a nightmare
     *
     *===========================================================================
     */
-    if (bNDataLength <= 0) 
+    if (byNDataLength <= 0) 
     {
         return ESP_OK;
     }
@@ -328,10 +325,9 @@ esp_err_t ESPNOW_fill_buffer(const byte *abyData, byte bNDataLength)
     }
     word wLocalHead = __atomic_load_n(&wRingBufHead, __ATOMIC_RELAXED);
     word wLocalTail = __atomic_load_n(&wRingBufTail, __ATOMIC_ACQUIRE);
-    word wNext = wLocalHead + 1;
     
     byte offset = 0;
-    while (offset + PACKED_FRAME_SIZE <= bNDataLength) {
+    while (offset + PACKED_FRAME_SIZE <= byNDataLength) {
         CAN_frame_t stFrame;
         dword dwID = ((dword)abyData[offset + 1] << 8)  |
                         ((dword)abyData[offset + 0]);
@@ -339,23 +335,26 @@ esp_err_t ESPNOW_fill_buffer(const byte *abyData, byte bNDataLength)
         stFrame.byDLC = abyData[offset + 2];
         memcpy(stFrame.abData, &abyData[offset + 3], 8);
 
-        /* Add Frame to Ring Buffer */
-        if (wNext >= CAN_QUEUE_LENGTH) 
+        /* Check if buffer is full */
+        if ((wLocalHead + 1) % CAN_QUEUE_LENGTH == wLocalTail) 
         {
-            wNext = 0;
-        }
-        if (wNext == wLocalTail) 
-        {
-            /* Buffer full, drop remaining frames */
-            __atomic_store_n(&wRingBufHead, wNext, __ATOMIC_RELEASE);
+            /* Buffer full, drop frames */
+            ESP_LOGE("ESP-NOW", "CAN Ring Buffer Full, Dropping Frames");
+            __atomic_store_n(&wRingBufHead, wLocalHead, __ATOMIC_RELEASE);
             return ESP_ERR_NO_MEM;
         }
+
+        /* Add Frame to Ring Buffer */
+        if (wLocalHead >= CAN_QUEUE_LENGTH) 
+        {
+            wLocalHead = 0;
+        }
         stCANRingBuffer[wLocalHead] = stFrame;
-        wNext++;
+        wLocalHead++;
         offset += PACKED_FRAME_SIZE;
     }
 
     /* Publish new head */
-    __atomic_store_n(&wRingBufHead, wNext--, __ATOMIC_RELEASE);
+    __atomic_store_n(&wRingBufHead, wLocalHead, __ATOMIC_RELEASE);
     return ESP_OK;
 }
