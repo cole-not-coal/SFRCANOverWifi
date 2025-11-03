@@ -92,9 +92,6 @@ void task_1ms(void)
     /* Update time since power up */
     dwTimeSincePowerUpms++;
 
-    /* CAN Tx messages Rxed over wifi */
-    CAN_empty_buffer(stCANBus0);
-
     /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
     adwLastTaskTime[eTASK_1MS] = (dword)qwtTaskTimer;

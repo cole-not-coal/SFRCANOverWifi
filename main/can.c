@@ -30,9 +30,10 @@ bool CAN_receive_callback(twai_node_handle_t stCANBus, const twai_rx_done_event_
 esp_err_t CAN_receive_debug();
 void CAN_bus_diagnosics();
 const char* CAN_error_state_to_string(twai_error_state_t stState);
+esp_err_t CAN_empty_buffer(twai_node_handle_t stCANBus);
 
 /* --------------------------- Definitions ---------------------------------- */
-#define CAN0_BITRATE 200000  // 200kbps
+#define CAN0_BITRATE 1000000  // 1000kbps
 #define CAN0_TX_QUEUE_LENGTH 10
 
 #define CAN1_BITRATE 1000000  // 1 Mbps
@@ -41,6 +42,7 @@ const char* CAN_error_state_to_string(twai_error_state_t stState);
 #define MAX_CAN_TXS_PER_CALL 1
 
 /* --------------------------- Functions ------------------------------------ */
+
 esp_err_t CAN_init(boolean bEnableRx)
 {
     /*
@@ -154,19 +156,22 @@ esp_err_t CAN_transmit(twai_node_handle_t stCANBus, CAN_frame_t stFrame)
     *   Revision History:
     *   20/04/25 CP Initial Version
     *   29/10/25 CP Updated to use onchip driver, old driver depriecated
+    *   02/11/25 CP Makes transmit work with messages < 8 bytes
     *
     *===========================================================================
     */
     esp_err_t stState;
 
     /* Construct message */
+    uint8_t abyData[(int)stFrame.byDLC];
+    memcpy(abyData, stFrame.abData, stFrame.byDLC);
     twai_frame_t stMessage = 
     {
-        .header.id  = stFrame.dwID,
-        .header.dlc = stFrame.byDLC,
+        .header.id  = (uint32_t)stFrame.dwID,
+        .header.dlc = (uint16_t)stFrame.byDLC,
         .header.ide = 0,
-        .buffer     = stFrame.abData,
-        .buffer_len = sizeof(stFrame.abData)
+        .buffer     = abyData,
+        .buffer_len = sizeof(abyData)
     };
     
     /* Transmit message */
@@ -189,6 +194,7 @@ esp_err_t CAN_receive_debug()
     *=========================================================================== 
     *   Revision History:
     *   29/10/25 CP Initial Version
+    *   02/11/25 CP Improved terminal readability
     *
     *===========================================================================
     */
@@ -207,12 +213,9 @@ esp_err_t CAN_receive_debug()
     while (dwLocalTail != dwLocalHead) 
     {
         CAN_frame_t stCANFrame = stCANRingBuffer[dwLocalTail];   
+
         /* Print CAN Msg */
-        qword qwData = 0;
-        for (int NCounter = 0; NCounter < stCANFrame.byDLC; NCounter++) {
-            qwData |= ((qword)stCANFrame.abData[NCounter] << (NCounter * 8));
-        }
-        ESP_LOGI("CAN", "Received CAN message ID: 0x%03X, DLC: %d, Data: %16X", stCANFrame.dwID, stCANFrame.byDLC, qwData);
+        LOG_CAN_FRAME(stCANFrame);
 
         /* Advance tail */ 
         dwLocalTail++;
@@ -353,7 +356,7 @@ bool CAN_receive_callback(twai_node_handle_t stCANBus, const twai_rx_done_event_
         /* Copy frame into buffer */
         stRxedFrame.dwID = (dword)stRxFrame.header.id;
         stRxedFrame.byDLC = (byte)stRxFrame.header.dlc;
-        memcpy(stRxedFrame.abData, stRxFrame.buffer, stRxFrame.buffer_len);
+        memcpy(stRxedFrame.abData, stRxFrame.buffer, stRxFrame.header.dlc);
         stCANRingBuffer[wLocalHead] = stRxedFrame;
 
         /* Publish new head */
