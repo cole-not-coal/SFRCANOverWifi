@@ -44,7 +44,7 @@ esp_err_t SD_card_init(void)
     *
     *===========================================================================
     */
-    esp_err_t stStatus = ESP_OK;
+    esp_err_t NStatus = ESP_OK;
     esp_vfs_fat_sdmmc_mount_config_t stSDMountConfig = 
     {
         .format_if_mount_failed = true,
@@ -68,31 +68,31 @@ esp_err_t SD_card_init(void)
     stSDCardSlot.host_id = stSDCardHost.slot;
 
     ESP_LOGI("SDCARD", "Initializing SD card...");
-    stStatus = spi_bus_initialize(stSDCardHost.slot, &stBusConfig, SDSPI_DEFAULT_DMA);
-    if (stStatus != ESP_OK)
+    NStatus = spi_bus_initialize(stSDCardHost.slot, &stBusConfig, SDSPI_DEFAULT_DMA);
+    if (NStatus != ESP_OK)
     {
-        ESP_LOGE("SDCARD", "Failed to initialize SPI bus: %s", esp_err_to_name(stStatus));
-        return stStatus;
+        ESP_LOGE("SDCARD", "Failed to initialize SPI bus: %s", esp_err_to_name(NStatus));
+        return NStatus;
     }
 
     ESP_LOGI("SDCARD", "Mounting filesystem...");
-    stStatus = esp_vfs_fat_sdspi_mount(SD_MOUNT_POINT, &stSDCardHost, &stSDCardSlot, &stSDMountConfig, &stSDCard);
-    if (stStatus != ESP_OK)
+    NStatus = esp_vfs_fat_sdspi_mount(SD_MOUNT_POINT, &stSDCardHost, &stSDCardSlot, &stSDMountConfig, &stSDCard);
+    if (NStatus != ESP_OK)
     {
-        if (stStatus == ESP_FAIL)
+        if (NStatus == ESP_FAIL)
         {
             ESP_LOGE("SDCARD", "Failed to mount filesystem. Formatting...");
-            stStatus = esp_vfs_fat_sdcard_format("/sdcard", stSDCard);
-            if (stStatus != ESP_OK)
+            NStatus = esp_vfs_fat_sdcard_format("/sdcard", stSDCard);
+            if (NStatus != ESP_OK)
             {
-                ESP_LOGE("SDCARD", "Failed to format: %s", esp_err_to_name(stStatus));
-                return stStatus;
+                ESP_LOGE("SDCARD", "Failed to format: %s", esp_err_to_name(NStatus));
+                return NStatus;
             }
         }
         else
         {
-            ESP_LOGE("SDCARD", "Failed to mount filesystem: %s", esp_err_to_name(stStatus));
-            return stStatus;
+            ESP_LOGE("SDCARD", "Failed to mount filesystem: %s", esp_err_to_name(NStatus));
+            return NStatus;
         }
     }
     ESP_LOGI("SDCARD", "Mounted successfully.");
@@ -117,7 +117,7 @@ esp_err_t SD_card_init(void)
     closedir(stDirectory);
     snprintf(abyFilePath, sizeof(abyFilePath), "%s/log%03d.txt", SD_MOUNT_POINT, (int)wNLastFile);
 
-   return stStatus;
+   return NStatus;
 }
 
 esp_err_t SD_card_write(byte *abyData)
@@ -189,7 +189,7 @@ esp_err_t sdcard_empty_buffer(void)
     *   sdcard_empty_buffer
     *   Takes:   None
     * 
-    *   Returns: stStatus - ESP_OK if successful, error code if not.
+    *   Returns: NStatus - ESP_OK if successful, error code if not.
     * 
     *   Empties the CAN ring buffer dumping the contents into the sdcard. If there 
     *   is no data to append, it returns ESP_OK. The ring buffer is

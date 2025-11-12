@@ -14,6 +14,8 @@
 #define SPI_SCK 19
 #define SPI_SD_CS 17
 
+#define I2C0_SDA 21
+#define I2C0_SCL 2
 
 #define SFR_TAG             "SFR_ESP32"
 

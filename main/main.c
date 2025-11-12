@@ -23,6 +23,7 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #include "espnow.h"
 #include "sdcard.h"
 #include "adc.h"
+#include "I2C.h"
 
 /* --------------------------- Definitions ----------------------------- */
 #define TIMER_INTERVAL_WD       100     // in microseconds
@@ -84,28 +85,35 @@ void IRAM_ATTR call_back_100ms(void *arg)
 
 static void main_init(void)
 {
-    esp_err_t stStatus;
+    esp_err_t NStatus;
     /* Initialises Features/ Peripherals, Comment out as needed*/
     /* ESP-NOW */
-    // stStatus = ESPNOW_init();
-    // if (stStatus != ESP_OK)
+    // NStatus = ESPNOW_init();
+    // if (NStatus != ESP_OK)
     // {
-    //     ESP_LOGE(SFR_TAG, "Failed to initialise ESP-NOW: %s", esp_err_to_name(stStatus));
+    //     ESP_LOGE(SFR_TAG, "Failed to initialise ESP-NOW: %s", esp_err_to_name(NStatus));
     // }
     /* CAN BUS */
-    stStatus = CAN_init(TRUE);
-    if (stStatus != ESP_OK)
+    NStatus = CAN_init(TRUE);
+    if (NStatus != ESP_OK)
     {
-        ESP_LOGE(SFR_TAG, "Failed to initialise CAN: %s", esp_err_to_name(stStatus));
+        ESP_LOGE(SFR_TAG, "Failed to initialise CAN: %s", esp_err_to_name(NStatus));
     }
     /* SD Card */
-    // stStatus = SD_card_init();
-    // if (stStatus != ESP_OK)
+    // NStatus = SD_card_init();
+    // if (NStatus != ESP_OK)
     // {
-    //     ESP_LOGE(SFR_TAG, "Failed to initialise SD Card: %s", esp_err_to_name(stStatus));
+    //     ESP_LOGE(SFR_TAG, "Failed to initialise SD Card: %s", esp_err_to_name(NStatus));
     // }
 
     /* ADC */
+    
+/* External Clock */
+    // NStatus = I2C_init();
+    // if (NStatus != ESP_OK)
+    // {
+    //     ESP_LOGE(SFR_TAG, "Failed to initialise I2C: %s", esp_err_to_name(NStatus));
+    // }
     
     /* Timers and GPIO cause a hard fault on fail so no error warning */
     GPIO_init();

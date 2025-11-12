@@ -384,7 +384,7 @@ esp_err_t CAN_empty_buffer(twai_node_handle_t stCANBus)
     *
     *===========================================================================
     */
-    esp_err_t stStatus = ESP_OK;
+    esp_err_t NStatus = ESP_OK;
     if (!stCANRingBuffer) 
     {
         return ESP_ERR_INVALID_STATE;
@@ -399,12 +399,12 @@ esp_err_t CAN_empty_buffer(twai_node_handle_t stCANBus)
     while (wCounter < MAX_CAN_TXS_PER_CALL && dwLocalTail != dwLocalHead) 
     {
         CAN_frame_t stCANFrame = stCANRingBuffer[dwLocalTail];   
-        stStatus = CAN_transmit(stCANBus, stCANFrame);  
-        if (stStatus != ESP_OK) 
+        NStatus = CAN_transmit(stCANBus, stCANFrame);  
+        if (NStatus != ESP_OK) 
         {
             /* Publish new tail */
             __atomic_store_n(&wRingBufTail, dwLocalTail, __ATOMIC_RELEASE);
-            return stStatus;
+            return NStatus;
         }
 
         /* Advance tail */ 
@@ -418,5 +418,5 @@ esp_err_t CAN_empty_buffer(twai_node_handle_t stCANBus)
     
     /* Publish new tail */
     __atomic_store_n(&wRingBufTail, dwLocalTail, __ATOMIC_RELEASE);
-    return stStatus;
+    return NStatus;
 }

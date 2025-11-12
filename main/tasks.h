@@ -12,6 +12,7 @@
 #include "espnow.h"
 #include "sdcard.h"
 #include "adc.h"
+#include "I2C.h"
 
 /* Function Definitions*/
 void task_BG(void);

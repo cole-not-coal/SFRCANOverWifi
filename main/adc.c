@@ -47,7 +47,7 @@ esp_err_t adc_register(int NPin, adc_atten_t eNAtten, adc_unit_t eNUnit, stADCHa
     *===========================================================================
     */
 
-    esp_err_t stStatus = ESP_OK;
+    esp_err_t NStatus = ESP_OK;
     adc_oneshot_chan_cfg_t stChannelConfig = {
         .atten = eNAtten,
         .bitwidth = ADC_BITWIDTH_DEFAULT,
@@ -56,16 +56,16 @@ esp_err_t adc_register(int NPin, adc_atten_t eNAtten, adc_unit_t eNUnit, stADCHa
     adc_oneshot_unit_init_cfg_t stADCConfig = {
         .unit_id = eNUnit,
     };
-    stStatus = adc_oneshot_new_unit(&stADCConfig, &stADCHandle->stADCUnit);
-    if (stStatus != ESP_OK) {
-        ESP_LOGE("ADC", "Failed to create ADC unit handle: %s", esp_err_to_name(stStatus));
-        return stStatus;
+    NStatus = adc_oneshot_new_unit(&stADCConfig, &stADCHandle->stADCUnit);
+    if (NStatus != ESP_OK) {
+        ESP_LOGE("ADC", "Failed to create ADC unit handle: %s", esp_err_to_name(NStatus));
+        return NStatus;
     }
 
-    stStatus = adc_oneshot_config_channel(stADCHandle->stADCUnit, stADCHandle->eNChannel, &stChannelConfig);
-    if (stStatus != ESP_OK) {
-        ESP_LOGE("ADC", "Failed to configure ADC channel: %s", esp_err_to_name(stStatus));
-        return stStatus;
+    NStatus = adc_oneshot_config_channel(stADCHandle->stADCUnit, stADCHandle->eNChannel, &stChannelConfig);
+    if (NStatus != ESP_OK) {
+        ESP_LOGE("ADC", "Failed to configure ADC channel: %s", esp_err_to_name(NStatus));
+        return NStatus;
     }
     adc_cali_curve_fitting_config_t stCalibrationConfig = {
         .unit_id = eNUnit,
@@ -73,11 +73,11 @@ esp_err_t adc_register(int NPin, adc_atten_t eNAtten, adc_unit_t eNUnit, stADCHa
         .atten = eNAtten,
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
-    stStatus = adc_cali_create_scheme_curve_fitting(&stCalibrationConfig, &stADCHandle->stCalibration);
-    if (stStatus != ESP_OK) {
-        ESP_LOGE("ADC", "Failed to create calibration handle: %s", esp_err_to_name(stStatus));
+    NStatus = adc_cali_create_scheme_curve_fitting(&stCalibrationConfig, &stADCHandle->stCalibration);
+    if (NStatus != ESP_OK) {
+        ESP_LOGE("ADC", "Failed to create calibration handle: %s", esp_err_to_name(NStatus));
     }
-    return stStatus;
+    return NStatus;
 }
 
 float adc_read_voltage(stADCHandles_t *stADCHandle)
