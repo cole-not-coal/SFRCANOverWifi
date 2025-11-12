@@ -123,13 +123,13 @@ esp_err_t eternal_clock_read_time(void)
         abyTimeData[2] |= ((byHours / 10) << 4);
         abyTimeData[2] |= (byHours % 10);
     }
-    snprintf(achTime, sizeof(achTime), "%02X:%02X:%02X %02d/%02d/20%02X",
+    snprintf(achTime, sizeof(achTime), "%02X:%02X:%02X %02X/%02X/20%02X",
              abyTimeData[2] & 0x3F,  // Hours (mask 24h bit)
              abyTimeData[1] & 0x7F,  // Minutes  
              abyTimeData[0] & 0x7F,  // Seconds (mask ST bit)
              abyTimeData[4] & 0x3F,  // Day
              abyTimeData[5] & 0x1F,  // Month
-             abyTimeData[6]);        // Year
+             abyTimeData[6] & 0x3F); // Year
 
     ESP_LOGI("I2C", "%s", achTime);
     
