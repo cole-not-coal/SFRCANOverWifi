@@ -6,21 +6,17 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 
 #include "adc.h"
 
-/* --------------------------- Local Types ----------------------------- */
-
-
 /* --------------------------- Local Variables ------------------------- */
 
 
 /* --------------------------- Global Variables ------------------------ */
-stADCHandles_t stADCHandle0; //Add as needed for more ADC channels
-
+stADCHandles_t stADCHandle0 =
+{
+    .eNChannel = ADC_CHANNEL_0, //GPIO0
+    .stCalibration = NULL,
+}; //Add as needed for more ADC channels
 
 /* --------------------------- Definitions ----------------------------- */
-
-/* --------------------------- Function prototypes --------------------- */
-esp_err_t adc_register(int NPin, adc_atten_t eNAtten, adc_unit_t eNUnit, stADCHandles_t *stADCHandle);
-float adc_read_voltage(stADCHandles_t *stADCHandle);
 
 
 /* --------------------------- Functions ------------------------------- */
@@ -43,40 +39,46 @@ esp_err_t adc_register(int NPin, adc_atten_t eNAtten, adc_unit_t eNUnit, stADCHa
     *=========================================================================== 
     *   Revision History:
     *   31/10/25 CP Initial Version
+    *   14/11/25 CP Make work
     *
     *===========================================================================
     */
 
     esp_err_t NStatus = ESP_OK;
-    adc_oneshot_chan_cfg_t stChannelConfig = {
-        .atten = eNAtten,
-        .bitwidth = ADC_BITWIDTH_DEFAULT,
-    };
-    
+
     adc_oneshot_unit_init_cfg_t stADCConfig = {
         .unit_id = eNUnit,
     };
+
     NStatus = adc_oneshot_new_unit(&stADCConfig, &stADCHandle->stADCUnit);
     if (NStatus != ESP_OK) {
         ESP_LOGE("ADC", "Failed to create ADC unit handle: %s", esp_err_to_name(NStatus));
         return NStatus;
     }
 
+    adc_oneshot_chan_cfg_t stChannelConfig = {
+        .atten = eNAtten,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+    };
+
     NStatus = adc_oneshot_config_channel(stADCHandle->stADCUnit, stADCHandle->eNChannel, &stChannelConfig);
     if (NStatus != ESP_OK) {
         ESP_LOGE("ADC", "Failed to configure ADC channel: %s", esp_err_to_name(NStatus));
         return NStatus;
     }
+
     adc_cali_curve_fitting_config_t stCalibrationConfig = {
         .unit_id = eNUnit,
-        .chan = stADCHandle->eNChannel,
+        .chan = NPin,
         .atten = eNAtten,
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
+    
     NStatus = adc_cali_create_scheme_curve_fitting(&stCalibrationConfig, &stADCHandle->stCalibration);
     if (NStatus != ESP_OK) {
         ESP_LOGE("ADC", "Failed to create calibration handle: %s", esp_err_to_name(NStatus));
     }
+
     return NStatus;
 }
 

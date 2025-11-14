@@ -106,14 +106,14 @@ static void main_init(void)
     //     ESP_LOGE(SFR_TAG, "Failed to initialise SD Card: %s", esp_err_to_name(NStatus));
     // }
 
-    /* ADC */
-    
-/* External Clock */
+    /* External Clock */
     // NStatus = I2C_init();
     // if (NStatus != ESP_OK)
     // {
     //     ESP_LOGE(SFR_TAG, "Failed to initialise I2C: %s", esp_err_to_name(NStatus));
     // }
+
+    /* ADC */
     
     /* Timers and GPIO cause a hard fault on fail so no error warning */
     GPIO_init();
