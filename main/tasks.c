@@ -54,6 +54,8 @@ void task_BG(void)
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_BG] = eTASK_ACTIVE;
 
+    TFT_display();
+
     /* Service the watchdog if all task have been completed at least once */
     word wNTaskCounter = 0;
     boolean bTasksComplete = TRUE;
@@ -117,21 +119,21 @@ void task_100ms(void)
         pin_toggle(GPIO_ONBOARD_LED); 
 
         /* Send Status Message */
-        CAN_transmit(stCANBus0, (CAN_frame_t)
-        {
-            .dwID = 0xFF, // UPDATE THIS FOR EACH DEVICE
-            .byDLC = 8,
-            .abData = {
-                (byte)(adwLastTaskTime[eTASK_1MS] / 50 & 0xFF),          
-                (byte)(adwMaxTaskTime[eTASK_1MS] / 50 & 0xFF),
-                (byte)(adwLastTaskTime[eTASK_100MS] / 500 & 0xFF),       
-                (byte)(adwMaxTaskTime[eTASK_100MS] / 500 & 0xFF),
-                (byte)(adwLastTaskTime[eTASK_BG] / 500 & 0xFF),        
-                (byte)(adwMaxTaskTime[eTASK_BG] / 500 & 0xFF),
-                (byte)((dwTimeSincePowerUpms/4000) >> 6 & 0xFF),
-                (byte)(((dwTimeSincePowerUpms/4000) << 2 | (eResetReason & 0x03)) & 0xFF)
-            }
-        });
+        // CAN_transmit(stCANBus0, (CAN_frame_t)
+        // {
+        //     .dwID = 0xFF, // UPDATE THIS FOR EACH DEVICE
+        //     .byDLC = 8,
+        //     .abData = {
+        //         (byte)(adwLastTaskTime[eTASK_1MS] / 50 & 0xFF),          
+        //         (byte)(adwMaxTaskTime[eTASK_1MS] / 50 & 0xFF),
+        //         (byte)(adwLastTaskTime[eTASK_100MS] / 500 & 0xFF),       
+        //         (byte)(adwMaxTaskTime[eTASK_100MS] / 500 & 0xFF),
+        //         (byte)(adwLastTaskTime[eTASK_BG] / 500 & 0xFF),        
+        //         (byte)(adwMaxTaskTime[eTASK_BG] / 500 & 0xFF),
+        //         (byte)((dwTimeSincePowerUpms/4000) >> 6 & 0xFF),
+        //         (byte)(((dwTimeSincePowerUpms/4000) << 2 | (eResetReason & 0x03)) & 0xFF)
+        //     }
+        // });
 
     };
 
@@ -154,7 +156,7 @@ void task_100ms(void)
     wNCounter++;
 
     /* Check if the CAN bus is in error state and recover */
-    CAN_bus_diagnosics();
+    // CAN_bus_diagnosics();
 
     /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;

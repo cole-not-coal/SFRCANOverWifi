@@ -24,6 +24,7 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 #include "sdcard.h"
 #include "adc.h"
 #include "I2C.h"
+#include "NVHDisplay.h"
 
 /* --------------------------- Definitions ----------------------------- */
 #define TIMER_INTERVAL_WD       100     // in microseconds
@@ -87,25 +88,33 @@ static void main_init(void)
 {
     esp_err_t NStatus;
     /* Initialises Features/ Peripherals, Comment out as needed*/
+
     /* ESP-NOW */
     // NStatus = ESPNOW_init();
     // if (NStatus != ESP_OK)
     // {
     //     ESP_LOGE(SFR_TAG, "Failed to initialise ESP-NOW: %s", esp_err_to_name(NStatus));
     // }
+
     /* CAN BUS */
-    NStatus = CAN_init(TRUE);
-    if (NStatus != ESP_OK)
-    {
-        ESP_LOGE(SFR_TAG, "Failed to initialise CAN: %s", esp_err_to_name(NStatus));
-    }
-    /* SD Card */
+    // NStatus = CAN_init(TRUE);
+    // if (NStatus != ESP_OK)
+    // {
+    //     ESP_LOGE(SFR_TAG, "Failed to initialise CAN: %s", esp_err_to_name(NStatus));
+    // }
+
+    /* SD Card (SDCard and LCD share the SPI bus, take care) */
     // NStatus = SD_card_init();
     // if (NStatus != ESP_OK)
     // {
     //     ESP_LOGE(SFR_TAG, "Failed to initialise SD Card: %s", esp_err_to_name(NStatus));
     // }
 
+    /* LDC (SDCard and LCD share the SPI bus, take care) */
+    NVHDisplay_init();
+
+    /* ADC */
+    
     /* External Clock */
     // NStatus = I2C_init();
     // if (NStatus != ESP_OK)
