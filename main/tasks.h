@@ -13,6 +13,7 @@
 #include "sdcard.h"
 #include "adc.h"
 #include "I2C.h"
+#include "NVHDisplay.h"
 
 /* Function Definitions*/
 void task_BG(void);
