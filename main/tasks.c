@@ -92,6 +92,9 @@ void task_1ms(void)
     /* Update time since power up */
     dwTimeSincePowerUpms++;
 
+    /* CAN Tx messages Rxed over wifi */
+    CAN_empty_buffer(stCANBus0);
+
     /* Update max task time */
     qwtTaskTimer = esp_timer_get_time() - qwtTaskTimer;
     adwLastTaskTime[eTASK_1MS] = (dword)qwtTaskTimer;
@@ -119,7 +122,7 @@ void task_100ms(void)
         /* Send Status Message */
         CAN_transmit(stCANBus0, (CAN_frame_t)
         {
-            .dwID = 0xFF, // UPDATE THIS FOR EACH DEVICE
+            .dwID = 0xF1, // UPDATE THIS FOR EACH DEVICE
             .byDLC = 8,
             .abData = {
                 (byte)(adwLastTaskTime[eTASK_1MS] / 50 & 0xFF),          
