@@ -22,6 +22,8 @@
 
 #define I2C0_SCL 2
 #define I2C0_SDA 21
+#define IMD_PWM_IN ADC_CHANNEL_0 // GPIO0
+
 
 #define SFR_TAG  "SFR_ESP32"
 

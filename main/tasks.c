@@ -85,7 +85,7 @@ void task_BG(void)
 void task_1ms(void)
 {
     /* Task that runs every 1ms. */
-    static qword qwtTaskTimer;
+    qword qwtTaskTimer;
     qwtTaskTimer = esp_timer_get_time();
     astTaskState[eTASK_1MS] = eTASK_ACTIVE;
 
@@ -135,9 +135,11 @@ void task_100ms(void)
 
     };
 
+    /* Every 10 Seconds */
     if (wNCounter >= 100)
     {
-        /* Print the task times every 10 seconds */
+        /* Print the task times */
+        #ifdef DEBUG
         ESP_LOGI(SFR_TAG, "Max Task Time: %5d BG %5d 1ms %5d 100ms", 
             (int)adwMaxTaskTime[eTASK_BG],
             (int)adwMaxTaskTime[eTASK_1MS],
@@ -147,6 +149,7 @@ void task_100ms(void)
             (int)adwLastTaskTime[eTASK_1MS],
             (int)adwLastTaskTime[eTASK_100MS]);
         wNCounter = 0;
+        #endif
     }
     wNCounter++;
 
