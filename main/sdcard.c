@@ -116,6 +116,7 @@ esp_err_t SD_card_init(void)
     }
     closedir(stDirectory);
     snprintf(abyFilePath, sizeof(abyFilePath), "%s/log%03d.txt", SD_MOUNT_POINT, (int)wNLastFile);
+    ESP_LOGI("SDCARD", "Created file %s/log%03d.txt.", SD_MOUNT_POINT, (int)wNLastFile);
 
    return NStatus;
 }
