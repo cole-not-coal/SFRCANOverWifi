@@ -37,6 +37,7 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 esp_timer_handle_t stTaskInterrupt1ms;
 esp_timer_handle_t stTaskInterrupt100ms;
 esp_reset_reason_t eResetReason;
+extern stADCHandles_t stADCHandle0;
 
 /* --------------------------- Function prototypes ----------------------------- */
 static void timers_init(void);
@@ -114,6 +115,7 @@ static void main_init(void)
     // }
 
     /* ADC */
+    adc_register(IMD_PWM_IN, ADC_ATTEN_DB_11, ADC_UNIT_1, &stADCHandle0);
     
     /* Timers and GPIO cause a hard fault on fail so no error warning */
     GPIO_init();
