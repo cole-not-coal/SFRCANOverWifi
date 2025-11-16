@@ -115,7 +115,7 @@ static void main_init(void)
     // }
 
     /* ADC */
-    adc_register(IMD_PWM_IN, ADC_ATTEN_DB_11, ADC_UNIT_1, &stADCHandle0);
+    adc_register(ADC_ATTEN_DB_11, ADC_UNIT_1, &stADCHandle0);
     
     /* Timers and GPIO cause a hard fault on fail so no error warning */
     GPIO_init();

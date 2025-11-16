@@ -12,14 +12,9 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 /* --------------------------- Global Variables ------------------------ */
 stADCHandles_t stADCHandle0 =
 {
-    .eNChannel = APPS1_IN, 
+    .eNChannel = IMD_PWM_IN, 
     .stCalibration = NULL,
 };
-stADCHandles_t stADCHandle1 =
-{
-    .eNChannel = APPS2_IN, 
-    .stCalibration = NULL,
-}; 
 //Add as needed for more ADC channels
 
 /* --------------------------- Definitions ----------------------------- */
