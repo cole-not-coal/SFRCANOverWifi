@@ -12,21 +12,26 @@ Written by Cole Perera for Sheffield Formula Racing 2025
 /* --------------------------- Global Variables ------------------------ */
 stADCHandles_t stADCHandle0 =
 {
-    .eNChannel = ADC_CHANNEL_0, //GPIO0
+    .eNChannel = APPS1_IN, 
     .stCalibration = NULL,
-}; //Add as needed for more ADC channels
+};
+stADCHandles_t stADCHandle1 =
+{
+    .eNChannel = APPS2_IN, 
+    .stCalibration = NULL,
+}; 
+//Add as needed for more ADC channels
 
 /* --------------------------- Definitions ----------------------------- */
 
 
 /* --------------------------- Functions ------------------------------- */
-esp_err_t adc_register(int NPin, adc_atten_t eNAtten, adc_unit_t eNUnit, stADCHandles_t *stADCHandle)
+esp_err_t adc_register(adc_atten_t eNAtten, adc_unit_t eNUnit, stADCHandles_t *stADCHandle)
 {
     /*
     *===========================================================================
     *   adc_register
-    *   Takes:  NPin: GPIO pin number to read ADC from
-    *          eNAtten: ADC attenuation setting
+    *   Takes: eNAtten: ADC attenuation setting
     *          eNUnit: ADC unit to use
     *          stADCHandle0: Pointer to ADC handle structure, contains unit and calibration handles
     * 
@@ -40,6 +45,7 @@ esp_err_t adc_register(int NPin, adc_atten_t eNAtten, adc_unit_t eNUnit, stADCHa
     *   Revision History:
     *   31/10/25 CP Initial Version
     *   14/11/25 CP Make work
+    *   15/11/25 CP Remove pin parameter, use channel from handle
     *
     *===========================================================================
     */
@@ -69,7 +75,7 @@ esp_err_t adc_register(int NPin, adc_atten_t eNAtten, adc_unit_t eNUnit, stADCHa
 
     adc_cali_curve_fitting_config_t stCalibrationConfig = {
         .unit_id = eNUnit,
-        .chan = NPin,
+        .chan = stADCHandle->eNChannel,
         .atten = eNAtten,
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
@@ -105,4 +111,47 @@ float adc_read_voltage(stADCHandles_t *stADCHandle)
     adc_oneshot_read(stADCHandle->stADCUnit, stADCHandle->eNChannel, &adc_raw);
     adc_cali_raw_to_voltage(stADCHandle->stCalibration, adc_raw, &voltage);
     return (float)voltage / 1000.0f; // Convert mV to V
+}
+
+float read_sensor(stADCHandles_t *stADCHandle, stSensorMap_t *stSensorMap)
+/*
+*===========================================================================
+*   read_sensor
+*   Takes:  stADCHandle: Pointer to ADC handle structure, contains unit and calibration handles
+*           stSensorMap: Pointer to sensor map structure for lookup table and limits
+* 
+*   Returns: Normalised sensor reading as float, or -999.0f on error
+* 
+*   Reads from the ADC and uses the sensor map to convert this to a real value.
+*   Includes plausibility check based on sensor map limits for SCS compliance.
+*
+*=========================================================================== 
+*   Revision History:
+*   16/11/25 CP Initial Version
+*
+*===========================================================================
+*/
+{
+    uint8_t NCounter;
+    float fVSensor = adc_read_voltage(stADCHandle);
+    /* If outside plauseable range throw error (SCS Requirement) */
+    if (fVSensor < stSensorMap->fLowerLimit || fVSensor > stSensorMap->fUpperLimit)
+    {
+        return -999.0f;
+    }
+
+    /* Lookup Sensor Value */
+    for (NCounter = 0; NCounter < sizeof(stSensorMap->afLookupTable[0])/sizeof(stSensorMap->afLookupTable[0][0]) - 1; NCounter++)
+    {
+        if (fVSensor >= stSensorMap->afLookupTable[0][NCounter] && fVSensor < stSensorMap->afLookupTable[0][NCounter + 1])
+        { 
+            float fSlope = (stSensorMap->afLookupTable[1][NCounter + 1] - stSensorMap->afLookupTable[1][NCounter]) /
+                           (stSensorMap->afLookupTable[0][NCounter + 1] - stSensorMap->afLookupTable[0][NCounter]);
+            float fOutput = stSensorMap->afLookupTable[1][NCounter] +
+                            fSlope * (fVSensor - stSensorMap->afLookupTable[0][NCounter]);
+            return fOutput;
+        }
+    }
+    
+    return -999.0f;
 }
